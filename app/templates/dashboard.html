@@ -1,4 +1,3 @@
-<!-- app/templates/dashboard.html -->
 {% extends "base.html" %}
 
 {% block title %}CRM WhatsApp Artisans - Pipeline{% endblock %}
@@ -53,15 +52,6 @@
     min-width: 0;
   }
   .input::placeholder { color: var(--text-soft); }
-
-  .main-content {
-    display: grid;
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-    gap: 16px;
-    padding: 16px 18px 20px 18px;
-    max-width: 1500px;
-    width: 100%;
-  }
 
   .kanban {
     margin-top: 8px;
@@ -324,7 +314,6 @@
     margin-top: 2px;
     background: var(--bg-soft-2);
   }
-
   .chat-input-wrapper {
     margin-top: 8px;
     display: flex;
@@ -368,9 +357,7 @@
       flex-direction: row;
       flex-wrap: wrap;
     }
-    .sidepanel-item {
-      flex: 1 1 45%;
-    }
+    .sidepanel-item { flex: 1 1 45%; }
   }
 
   @media (max-width: 640px) {
@@ -418,12 +405,13 @@
           {% for item in deals %}
           {% set deal = item.deal %}
           {% set contact = item.contact %}
-          <article
-            class="card {% if selected and selected.deal.id == deal.id %}active{% endif %}"
-          >
+          <article class="card {% if selected and selected.deal.id == deal.id %}active{% endif %}">
             <div class="card-top-row">
               <div class="card-title">{{ deal.title }}</div>
-              <div class="card-badge {% if contact.type == 'client' %}type-client{% elif contact.type == 'fournisseur' %}type-fournisseur{% endif %}">
+              <div class="card-badge
+                {% if contact.type == 'client' %}type-client
+                {% elif contact.type == 'fournisseur' %}type-fournisseur
+                {% endif %}">
                 {{ contact.type|capitalize }}
               </div>
             </div>
@@ -435,10 +423,13 @@
               <span>{{ contact.name }}</span>
             </div>
             <div class="card-footer">
-              <span>{{ (deal.last_message_preview or '')[:40] }}{% if deal.last_message_preview and deal.last_message_preview|length > 40 %}…{% endif %}</span>
+              <span>
+                {{ (deal.last_message_preview or '')[:40] }}
+                {% if deal.last_message_preview and deal.last_message_preview|length > 40 %}…{% endif %}
+              </span>
               <span class="card-price">
                 {% if deal.amount_estimated is not none %}
-                  {{ "%.0f" | format(deal.amount_estimated) }} €
+                  {{ "%.0f"|format(deal.amount_estimated) }} €
                 {% else %}
                   —
                 {% endif %}
@@ -456,7 +447,7 @@
     </div>
   </section>
 
-  <!-- CHAT PANEL (sélection) -->
+  <!-- CHAT PANEL -->
   <section class="panel">
     {% if selected %}
       {% set s_deal = selected.deal %}
@@ -550,7 +541,7 @@
           </span>
           <span>
             {% if selected and s_deal.amount_estimated is not none %}
-              Montant estimé : {{ "%.0f" | format(s_deal.amount_estimated) }} €
+              Montant estimé : {{ "%.0f"|format(s_deal.amount_estimated) }} €
             {% endif %}
           </span>
         </div>
