@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+jinja2
+psycopg[binary]      # pour Postgres moderne
+python-multipart     # si tu ajoutes des formulaires upload plus tard
