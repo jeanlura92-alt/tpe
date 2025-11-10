@@ -366,4 +366,22 @@
           </div>
           <div class="topbar-subtitle">
             {% block topbar_subtitle %}
-            Vue des demandes en
+            Vue des demandes entrantes (devis, urgences, rendez-vous) pour vos clients et fournisseurs.
+            {% endblock %}
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <div class="pill">
+            <span class="pill-dot"></span>
+            Maquette interface (squelette FastAPI / SQLModel)
+          </div>
+          <button class="btn">Vue Contacts</button>
+          <button class="btn btn-primary">+ Nouvelle affaire</button>
+        </div>
+      </header>
+
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</body>
+</html>
