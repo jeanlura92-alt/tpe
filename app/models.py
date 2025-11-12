@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from sqlmodel import SQLModel, Field
 
 
-# ---- Constantes "enum" simples (conformes au reste de l'app) ----
 class DealStatus:
     NEW = "new"
     QUOTE = "quote"
@@ -21,16 +20,15 @@ class ContactType:
 
 
 class MessageDirection:
-    INBOUND = "in"   # reçu depuis WhatsApp
-    OUTBOUND = "out" # envoyé depuis l'app
+    INBOUND = "in"   # reçu
+    OUTBOUND = "out" # envoyé
 
 
-# ---- Modèles ----
 class Contact(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     type: str = Field(default=ContactType.CLIENT, index=True)
     name: str
-    phone: str = Field(index=True)  # format +E.164
+    phone: str = Field(index=True)
     email: Optional[str] = None
     company: Optional[str] = None
     address: Optional[str] = None
@@ -45,7 +43,6 @@ class Deal(SQLModel, table=True):
     status: str = Field(default=DealStatus.NEW, index=True)
     amount_estimated: Optional[int] = None
 
-    # méta dernier message pour le Kanban
     last_message_preview: Optional[str] = None
     last_message_channel: Optional[str] = None
     last_message_at: Optional[datetime] = None
@@ -54,11 +51,9 @@ class Deal(SQLModel, table=True):
 
 
 class Message(SQLModel, table=True):
-    """
-    Historique fin de conversation (WhatsApp uniquement ici).
-    """
     id: Optional[int] = Field(default=None, primary_key=True)
     deal_id: int = Field(foreign_key="deal.id", index=True)
+    contact_id: int = Field(foreign_key="contact.id", index=True)  # <-- AJOUT
     direction: str = Field(index=True)            # "in" | "out"
     channel: str = Field(default="WhatsApp")
     content: str
