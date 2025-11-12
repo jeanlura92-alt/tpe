@@ -8,7 +8,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import select, Session, SQLModel
-from dateutil import parser as dtparser  # pagination par curseur (msgs_before)
 
 from .database import get_session, create_db_and_tables
 from .models import (
@@ -87,12 +86,8 @@ def dashboard(
     session: Session = Depends(get_session),
     contact_id: int | None = None,
     profile: str | None = None,
-    msgs_before: str | None = None,
-    msgs_limit: int = 50,
 ):
-    """Dashboard principal (pipeline + panneau de conversation).
-       Pagination d'historique : on charge par défaut les 50 derniers messages,
-       et le bouton 'Afficher plus' recule le curseur temporel."""
+    """Dashboard simple sans pagination : fil complet pour le contact sélectionné."""
     profile = profile if profile in {ContactType.CLIENT, ContactType.PROSPECT, ContactType.FOURNISSEUR, ContactType.AUTRE} else None
     columns = _get_pipeline_columns(profile)
 
@@ -126,28 +121,12 @@ def dashboard(
         (DealStatus.CLOSED, _pipeline_labels_for_profile(profile)[DealStatus.CLOSED]),
     ]
 
-    # --- Historique messages : pagination par curseur (msgs_before) ---
     messages: List[Message] = []
-    messages_next_cursor: Optional[str] = None
-    msgs_limit = max(1, min(int(msgs_limit or 50), 200))
-
     if selected:
         s_deal: Deal = selected["deal"]
-        q = select(Message).where(Message.deal_id == s_deal.id)
-        if msgs_before:
-            try:
-                before_dt = dtparser.isoparse(msgs_before)
-                q = q.where(Message.sent_at < before_dt)
-            except Exception:
-                pass
-        q = q.order_by(Message.sent_at.desc()).limit(msgs_limit)
-        batch = session.exec(q).all()
-        # les plus récents d'abord, on inverse pour afficher ancien -> récent
-        batch.reverse()
-        messages = batch
-        if len(batch) >= msgs_limit:
-            # prochain curseur = plus ancien de ce lot
-            messages_next_cursor = batch[0].sent_at.isoformat() if batch[0].sent_at else batch[0].created_at.isoformat()
+        messages = session.exec(
+            select(Message).where(Message.deal_id == s_deal.id).order_by(Message.sent_at.asc())
+        ).all()
 
     return templates.TemplateResponse(
         "dashboard.html",
@@ -160,8 +139,6 @@ def dashboard(
             "status_options": status_options,
             "current_profile": profile or "tous",
             "messages": messages,
-            "messages_next_cursor": messages_next_cursor,
-            "messages_limit": msgs_limit,
         },
     )
 
@@ -201,10 +178,10 @@ async def send_whatsapp_message(
         return JSONResponse({"error": "contact inconnu ou sans numéro"}, status_code=404)
 
     # envoi WhatsApp
-    result = await wa_send_text(contact.phone, content)
+    _ = await wa_send_text(contact.phone, content)
     now = datetime.now(timezone.utc)
 
-    # trace OUTBOUND avec sent_at non nul
+    # trace OUTBOUND
     msg = Message(
         deal_id=deal.id,
         contact_id=contact.id,
@@ -222,7 +199,6 @@ async def send_whatsapp_message(
     session.add(deal)
     session.commit()
 
-    # retour sur le même contact
     return RedirectResponse(url=f"/?contact_id={contact.id}", status_code=303)
 
 
@@ -305,7 +281,6 @@ async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session
 
         return JSONResponse({"ok": True})
     except Exception as e:
-        # On ne 500 pas le webhook : statut 200 avec erreur pour visibilité
         return JSONResponse({"ok": False, "error": str(e)}, status_code=200)
 
 
