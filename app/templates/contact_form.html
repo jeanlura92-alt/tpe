@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Nouveau contact - CRM WhatsApp{% endblock %}
+
+{% block content %}
+<main class="main-content">
+  <section class="panel">
+    <div class="panel-header">
+      <div class="panel-title-block">
+        <div class="panel-title">Nouveau contact</div>
+        <div class="panel-subtitle">Créer un contact et une affaire initiale.</div>
+      </div>
+    </div>
+
+    <form method="post" action="/contacts/new" style="display:flex; flex-direction:column; gap:10px; max-width:520px;">
+      <label>Type
+        <select name="type" class="select" required>
+          {% for t in contact_types %}
+            <option value="{{ t }}">{{ t|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>Nom complet
+        <input class="input" name="name" placeholder="Ex: Mme Dupont" required />
+      </label>
+
+      <label>Téléphone (format international)
+        <input class="input" name="phone" placeholder="+9665..." required />
+      </label>
+
+      <label>Email
+        <input class="input" name="email" placeholder="exemple@mail.com" />
+      </label>
+
+      <label>Société
+        <input class="input" name="company" placeholder="Optionnel" />
+      </label>
+
+      <label>Adresse
+        <input class="input" name="address" placeholder="Optionnel" />
+      </label>
+
+      <label>Tags (séparés par des virgules)
+        <input class="input" name="tags" placeholder="Urgent,Nouveau" />
+      </label>
+
+      <div style="display:flex; gap:8px;">
+        <a class="btn" href="/contacts">Annuler</a>
+        <button class="btn btn-primary" type="submit">Créer</button>
+      </div>
+    </form>
+  </section>
+</main>
+{% endblock %}
