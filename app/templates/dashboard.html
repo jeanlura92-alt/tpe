@@ -72,22 +72,24 @@
         <div class="kanban-title">{{ col.label }} ({{ deals|length }})</div>
         <div class="cards" ondragover="event.preventDefault();" ondrop="onDrop(event, '{{ col.id }}')">
           {% for item in deals %}
-          {% set deal = item.deal %}
-          {% set contact = item.contact %}
-          <a href="/?contact_id={{ contact.id }}{% if current_profile!='tous' %}&profile={{ current_profile }}{% endif %}" style="text-decoration:none;">
-            <div class="card {% if selected and selected.contact.id == contact.id %}active{% endif %}"
-                 draggable="true"
-                 ondragstart="onDragStart(event, {{ deal.id }})"
-                 data-deal="{{ deal.id }}">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div style="font-weight:500;">{{ contact.name }}</div>
-                <div style="font-size:11px;color:var(--text-soft);">{{ deal.amount_estimated if deal.amount_estimated is not none else "—" }} €</div>
+            {% set deal = item.deal %}
+            {% set contact = item.contact %}
+            <a href="/?contact_id={{ contact.id }}{% if current_profile!='tous' %}&profile={{ current_profile }}{% endif %}" style="text-decoration:none;">
+              <div class="card {% if selected and selected.contact.id == contact.id %}active{% endif %}"
+                   draggable="true"
+                   ondragstart="onDragStart(event, {{ deal.id }})"
+                   data-deal="{{ deal.id }}">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <div style="font-weight:500;">{{ contact.name }}</div>
+                  <div style="font-size:11px;color:var(--text-soft);">
+                    {{ deal.amount_estimated if deal.amount_estimated is not none else "—" }} €
+                  </div>
+                </div>
+                <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">{{ deal.title }}</div>
               </div>
-              <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">{{ deal.title }}</div>
-            </div>
-          </a>
+            </a>
           {% else %}
-          <div style="font-size:12px;color:var(--text-soft);">–</div>
+            <div style="font-size:12px;color:var(--text-soft);">–</div>
           {% endfor %}
         </div>
       </div>
@@ -114,7 +116,6 @@
       </div>
       {% if selected %}
       <form method="post" action="/deals/{{ s_deal.id }}/status" style="display:flex; gap:6px; align-items:center;">
-        <!-- On renvoie vers la même page après MAJ -->
         <input type="hidden" name="next" value="/?contact_id={{ s_contact.id }}{% if current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
         <select name="status" class="chat-input">
           {% for value,label in status_options %}
@@ -145,16 +146,16 @@
       <aside class="contacts-panel">
         <div class="contacts-title">Tous les contacts</div>
         {% for c in contacts_list %}
-        <a href="/?contact_id={{ c.id }}{% if current_profile!='tous' %}&profile={{ current_profile }}{% endif %}" style="text-decoration:none;">
-          <div class="sidepanel-item {% if selected and selected.contact.id == c.id %}active{% endif %}">
-            <strong>{{ c.name }}</strong>
-            <span style="font-size:11px;color:var(--text-soft);">{{ c.phone }}</span>
-            <span class="sidepanel-tag" style="text-transform:capitalize;">{{ c.type }}</span>
-          </div>
-        </a>
+          <a href="/?contact_id={{ c.id }}{% if current_profile!='tous' %}&profile={{ current_profile }}{% endif %}" style="text-decoration:none;">
+            <div class="sidepanel-item {% if selected and selected.contact.id == c.id %}active{% endif %}">
+              <strong>{{ c.name }}</strong>
+              <span style="font-size:11px;color:var(--text-soft);">{{ c.phone }}</span>
+              <span class="sidepanel-tag" style="text-transform:capitalize;">{{ c.type }}</span>
+            </div>
+          </a>
         {% else %}
-        <div style="font-size:12px;color:var(--text-soft);">Aucun contact.</div>
-        {% endif %}
+          <div style="font-size:12px;color:var(--text-soft);">Aucun contact.</div>
+        {% endfor %}
       </aside>
     </div>
   </section>
