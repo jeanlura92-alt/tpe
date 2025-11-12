@@ -4,7 +4,6 @@ from contextlib import contextmanager
 from sqlmodel import SQLModel, create_engine, Session
 from sqlalchemy import text, inspect
 
-# --------- Utils ----------
 def _mask_url(url: str) -> str:
     try:
         if "://" not in url:
@@ -18,18 +17,15 @@ def _mask_url(url: str) -> str:
     except Exception:
         return url
 
-# --------- DATABASE_URL ----------
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL manquant. Définis cette variable sur Render.")
 
-# Normalisation pour Psycopg v3 (et compat Python 3.13 / SQLAlchemy 2.x)
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
 elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
-# Pooling raisonnable pour Render
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
@@ -46,7 +42,6 @@ def session_scope():
 def get_session() -> Session:
     return Session(engine)
 
-# --------- Mini-migrations idempotentes ----------
 def _alter_table_add_columns_if_needed(table: str, column_defs: list[str]):
     for frag in column_defs:
         stmt = f'ALTER TABLE "{table}" {frag};'
@@ -54,6 +49,7 @@ def _alter_table_add_columns_if_needed(table: str, column_defs: list[str]):
             conn.execute(text(stmt))
 
 def _run_migrations():
+    # Crée les tables connues par les modèles
     SQLModel.metadata.create_all(engine)
 
     insp = inspect(engine)
@@ -86,6 +82,10 @@ def _run_migrations():
     else:
         cols = {c["name"] for c in insp.get_columns("message")}
         adds = []
+        if "deal_id" not in cols:
+            adds.append('ADD COLUMN IF NOT EXISTS "deal_id" INTEGER')
+        if "contact_id" not in cols:  # <-- AJOUT
+            adds.append('ADD COLUMN IF NOT EXISTS "contact_id" INTEGER')
         if "direction" not in cols:
             adds.append('ADD COLUMN IF NOT EXISTS "direction" TEXT')
         if "channel" not in cols:
@@ -94,10 +94,17 @@ def _run_migrations():
             adds.append('ADD COLUMN IF NOT EXISTS "content" TEXT NOT NULL DEFAULT \'\'')
         if "created_at" not in cols:
             adds.append('ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW()')
-        if "deal_id" not in cols:
-            adds.append('ADD COLUMN IF NOT EXISTS "deal_id" INTEGER')
         if adds:
             _alter_table_add_columns_if_needed("message", adds)
+
+        # Backfill contact_id si null (jointure via deal)
+        with engine.begin() as conn:
+            conn.execute(text("""
+                UPDATE "message" m
+                SET contact_id = d.contact_id
+                FROM "deal" d
+                WHERE m.deal_id = d.id AND (m.contact_id IS NULL OR m.contact_id = 0)
+            """))
 
 def create_db_and_tables():
     try:
