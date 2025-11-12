@@ -172,21 +172,25 @@ async def send_whatsapp_message(
     if not contact or not contact.phone:
         return JSONResponse({"error": "contact inconnu ou sans numéro"}, status_code=404)
 
+    # envoi WhatsApp
     result = await wa_send_text(contact.phone, content)
+    now = datetime.now(timezone.utc)
 
-    # Enregistre le message sortant AVEC contact_id
+    # trace OUTBOUND avec sent_at non nul
     msg = Message(
         deal_id=deal.id,
-        contact_id=contact.id,                      # <-- IMPORTANT
+        contact_id=contact.id,
         direction=MessageDirection.OUTBOUND,
         content=content,
         channel="WhatsApp",
+        created_at=now,
+        sent_at=now,  # <-- clé pour NOT NULL
     )
     session.add(msg)
 
     deal.last_message_preview = content[:200]
     deal.last_message_channel = "WhatsApp"
-    deal.last_message_at = datetime.now(timezone.utc)
+    deal.last_message_at = now
     session.add(deal)
     session.commit()
 
@@ -241,22 +245,21 @@ async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session
                         select(Deal).where(Deal.contact_id == contact.id).order_by(Deal.id.desc())
                     ).first()
                     if not deal:
-                        deal = Deal(
-                            title="Conversation WhatsApp",
-                            contact_id=contact.id,
-                            status=DealStatus.NEW,
-                        )
+                        deal = Deal(title="Conversation WhatsApp", contact_id=contact.id, status=DealStatus.NEW)
                         session.add(deal)
                         session.commit()
                         session.refresh(deal)
 
                     if text_body:
+                        now = datetime.now(timezone.utc)
                         msg = Message(
                             deal_id=deal.id,
-                            contact_id=contact.id,          # <-- IMPORTANT
+                            contact_id=contact.id,
                             direction=MessageDirection.INBOUND,
                             content=text_body[:4000],
                             channel="WhatsApp",
+                            created_at=now,
+                            sent_at=now,  # on renseigne pour satisfaire NOT NULL existant
                         )
                         session.add(msg)
 
@@ -315,12 +318,7 @@ def contacts_new_form(request: Request):
             "request": request,
             "mode": "new",
             "contact": None,
-            "contact_types": [
-                ContactType.CLIENT,
-                ContactType.PROSPECT,
-                ContactType.FOURNISSEUR,
-                ContactType.AUTRE,
-            ],
+            "contact_types": [ContactType.CLIENT, ContactType.PROSPECT, ContactType.FOURNISSEUR, ContactType.AUTRE],
         },
     )
 
@@ -362,12 +360,7 @@ def contacts_edit_form(contact_id: int, request: Request, session: Session = Dep
             "request": request,
             "mode": "edit",
             "contact": contact,
-            "contact_types": [
-                ContactType.CLIENT,
-                ContactType.PROSPECT,
-                ContactType.FOURNISSEUR,
-                ContactType.AUTRE,
-            ],
+            "contact_types": [ContactType.CLIENT, ContactType.PROSPECT, ContactType.FOURNISSEUR, ContactType.AUTRE],
         },
     )
 
