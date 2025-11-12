@@ -1,112 +1,36 @@
 {% extends "base.html" %}
-
 {% block title %}CRM WhatsApp Artisans - Pipeline{% endblock %}
 
 {% block extra_head %}
 <style>
-  .panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 8px;
-  }
+  /* Styles principaux : pipeline et chat */
+  .panel-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
   .panel-title-block { display: flex; flex-direction: column; gap: 4px; }
   .panel-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .badge { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-strong); border: 1px solid #bfdbfe; }
   .panel-subtitle { font-size: 12px; color: var(--text-soft); }
   .panel-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .input, .select { border-radius: 999px; border: 1px solid var(--border); padding: 6px 10px; font-size: 12px; background: #ffffff; color: var(--text); min-width: 0; }
-  .input::placeholder { color: var(--text-soft); }
 
-  .kanban { margin-top: 8px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 4px; }
-  .kanban-column { background: var(--bg-soft-2); border-radius: 10px; border: 1px solid var(--border); padding: 10px; display: flex; flex-direction: column; min-width: 220px; max-height: calc(70vh - 60px); }
-  .kanban-column-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-  .kanban-column-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-soft); }
-  .kanban-column-count { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: #ffffff; border: 1px solid var(--border); color: var(--text-soft); }
-  .kanban-column-body { overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 8px; }
+  .kanban { margin-top: 8px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; overflow-x: auto; }
+  .kanban-column { background: var(--bg-soft-2); border-radius: 10px; border: 1px solid var(--border); padding: 10px; display: flex; flex-direction: column; min-width: 220px; }
 
-  .card { border-radius: 10px; border: 1px solid var(--border); padding: 8px; background: #ffffff; cursor: pointer; display: flex; flex-direction: column; gap: 6px;
-          transition: border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease, transform 0.06s ease; }
-  .card:hover { border-color: var(--accent-soft); box-shadow: 0 1px 4px rgba(15,23,42,0.08); transform: translateY(-1px); }
-  .card.active { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(37,99,235,0.3); background: #eff6ff; }
-  .card-top-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .card-title { font-size: 13px; font-weight: 500; }
-  .card-badge { font-size: 10px; padding: 2px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-soft); background: #ffffff; }
-  .card-badge.type-client { border-color: #bbf7d0; background: #ecfdf3; color: #15803d; }
-  .card-badge.type-fournisseur { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
-  .card-meta { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 11px; color: var(--text-soft); }
-  .card-tag { font-size: 11px; padding: 2px 6px; border-radius: 999px; background: var(--bg-soft-2); border: 1px dashed var(--border); color: var(--text-soft); }
-  .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-soft); }
-  .card-price { color: var(--accent-strong); font-weight: 500; }
+  .card { border-radius: 10px; border: 1px solid var(--border); padding: 8px; background: #ffffff; transition: 0.15s; cursor: pointer; }
+  .card:hover { border-color: var(--accent-soft); box-shadow: 0 1px 4px rgba(15,23,42,0.08); }
+  .card.active { border-color: var(--accent); background: #eff6ff; }
 
-  /* Chat */
-  .chat-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
-  .chat-contact { display: flex; align-items: center; gap: 10px; }
-  .avatar { width: 32px; height: 32px; border-radius: 999px; background: var(--accent-soft); display: inline-flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; color: var(--accent-strong); }
-  .chat-contact-info { display: flex; flex-direction: column; gap: 2px; }
-  .chat-contact-name { font-size: 14px; font-weight: 600; }
-  .chat-contact-meta { font-size: 11px; color: var(--text-soft); display: flex; gap: 8px; flex-wrap: wrap; }
-  .chip { border-radius: 999px; padding: 3px 9px; font-size: 11px; border: 1px solid var(--border); background: var(--bg-soft-2); color: var(--text-soft); }
-  .chip.whatsapp { border-color: #22c55e; background: #ecfdf3; color: #166534; }
-  .chat-body { margin-top: 6px; flex: 1; border-radius: 10px; background: var(--bg-soft-2); border: 1px solid var(--border); display: flex; overflow: hidden; }
-  .chat-messages { flex: 2; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; max-height: calc(70vh - 120px); overflow-y: auto; }
-  .msg-row { display: flex; margin-bottom: 2px; }
-  .msg-row.inbound { justify-content: flex-start; }
-  .msg-row.outbound { justify-content: flex-end; }
-  .msg-bubble { max-width: 75%; padding: 7px 10px; border-radius: 12px; font-size: 13px; line-height: 1.4; background: #ffffff; border: 1px solid var(--border); color: var(--text); }
-  .msg-bubble.inbound { border-top-left-radius: 4px; }
-  .msg-bubble.outbound { background: var(--accent); color: #ffffff; border-color: var(--accent); border-top-right-radius: 4px; }
-  .msg-meta { font-size: 10px; margin-top: 2px; opacity: 0.7; text-align: right; }
-
-  .chat-sidepanel { width: 190px; border-left: 1px solid var(--border); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; background: #f8fafc; }
-  .sidepanel-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-soft); }
-  .sidepanel-item { border-radius: 8px; border: 1px solid var(--border); padding: 6px 7px; font-size: 11px; color: var(--text-soft); background: #ffffff; display: flex; flex-direction: column; gap: 2px; }
-  .sidepanel-item strong { color: var(--text); font-weight: 500; }
-  .sidepanel-tag { font-size: 10px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); align-self: flex-start; margin-top: 2px; background: var(--bg-soft-2); }
-
-  .chat-input-wrapper { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
-  .chat-input-row { display: flex; align-items: center; gap: 6px; }
-  .chat-input { flex: 1; border-radius: 999px; border: 1px solid var(--border); padding: 8px 12px; font-size: 13px; background: #ffffff; color: var(--text); }
-  .chat-input::placeholder { color: var(--text-soft); }
-  .chat-footer-meta { font-size: 10px; color: var(--text-soft); display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-
-  @media (max-width: 960px) {
-    .main-content { grid-template-columns: minmax(0, 1fr); }
-    .chat-body { flex-direction: column; }
-    .chat-messages { max-height: none; }
-    .chat-sidepanel { width: 100%; border-left: none; border-top: 1px solid var(--border); flex-direction: row; flex-wrap: wrap; }
-    .sidepanel-item { flex: 1 1 45%; }
-  }
-
-  @media (max-width: 640px) {
-    .kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
+  .sidepanel-item.active { border-color: var(--accent); background: var(--accent-soft); }
 </style>
 {% endblock %}
 
 {% block content %}
 <main class="main-content">
-  <!-- BOARD -->
+  <!-- PIPELINE -->
   <section class="panel">
     <div class="panel-header">
       <div class="panel-title-block">
-        <div class="panel-title">
-          Pipeline quotidien
-          <span class="badge">Artisans & TPE</span>
-        </div>
-        <div class="panel-subtitle">
-          Organisation des demandes reçues sur WhatsApp (devis, urgences, rendez-vous).
-        </div>
-      </div>
-      <div class="panel-filters">
-        <input class="input" type="search" placeholder="Rechercher un client ou un numéro…" />
-        <select class="select">
-          <option>Tous les types</option>
-          <option>Clients</option>
-          <option>Prospects</option>
-          <option>Fournisseurs</option>
-        </select>
+        <div class="panel-title">Pipeline WhatsApp <span class="badge">Artisans</span></div>
+        <div class="panel-subtitle">Demandes clients et fournisseurs classées par étape.</div>
       </div>
     </div>
 
@@ -114,51 +38,20 @@
       {% for col in columns %}
       {% set deals = deals_by_status.get(col.id, []) %}
       <div class="kanban-column">
-        <div class="kanban-column-header">
-          <div class="kanban-column-title">{{ col.label }}</div>
-          <div class="kanban-column-count">{{ deals|length }}</div>
-        </div>
-        <div class="kanban-column-body">
-          {% for item in deals %}
-          {% set deal = item.deal %}
-          {% set contact = item.contact %}
-          <article class="card {% if selected and selected.deal.id == deal.id %}active{% endif %}">
-            <div class="card-top-row">
-              <div class="card-title">{{ deal.title }}</div>
-              <div class="card-badge
-                {% if contact.type == 'client' %}type-client
-                {% elif contact.type == 'fournisseur' %}type-fournisseur
-                {% endif %}">
-                {{ contact.type|capitalize }}
-              </div>
-            </div>
-            <div class="card-meta">
-              <span class="card-tag">
-                {{ deal.last_message_channel or "WhatsApp" }}
-                {% if deal.last_message_at %} · {{ deal.last_message_at.strftime("%H:%M") }}{% endif %}
-              </span>
-              <span>{{ contact.name }}</span>
-            </div>
-            <div class="card-footer">
-              <span>
-                {{ (deal.last_message_preview or '')[:40] }}
-                {% if deal.last_message_preview and deal.last_message_preview|length > 40 %}…{% endif %}
-              </span>
-              <span class="card-price">
-                {% if deal.amount_estimated is not none %}
-                  {{ "%.0f"|format(deal.amount_estimated) }} €
-                {% else %}
-                  —
-                {% endif %}
-              </span>
-            </div>
-          </article>
-          {% else %}
-          <div style="font-size:11px;color:var(--text-soft);">
-            Aucun dossier dans cette colonne.
+        <div class="kanban-column-title">{{ col.label }} ({{ deals|length }})</div>
+        {% for item in deals %}
+        {% set deal = item.deal %}
+        {% set contact = item.contact %}
+        <a href="/?contact_id={{ contact.id }}" style="text-decoration:none;">
+          <div class="card {% if selected and selected.contact.id == contact.id %}active{% endif %}">
+            <div class="card-title" style="font-weight:500;">{{ contact.name }}</div>
+            <div style="font-size:12px;color:var(--text-soft);">{{ deal.title }}</div>
+            <div style="font-size:11px;color:var(--accent-strong);">{{ deal.amount_estimated or "—" }} €</div>
           </div>
-          {% endfor %}
-        </div>
+        </a>
+        {% else %}
+        <div style="font-size:12px;color:var(--text-soft);">Aucun dossier.</div>
+        {% endfor %}
       </div>
       {% endfor %}
     </div>
@@ -173,112 +66,48 @@
 
     <header class="chat-header">
       <div class="chat-contact">
-        <div class="avatar">
-          {% if selected %}
-            {{ s_contact.name[0] | upper }}
-          {% else %}
-            ?
-          {% endif %}
+        <div class="avatar">{{ s_contact.name[0] | upper if selected else '?' }}</div>
+        <div>
+          <div style="font-weight:600;">{{ s_contact.name if selected else "Aucun contact sélectionné" }}</div>
+          <div style="font-size:12px;color:var(--text-soft);">{{ s_contact.phone if selected else "Sélectionnez un contact à gauche" }}</div>
         </div>
-        <div class="chat-contact-info">
-          <div class="chat-contact-name">
-            {% if selected %}{{ s_contact.name }}{% else %}Aucune affaire sélectionnée{% endif %}
-          </div>
-          <div class="chat-contact-meta">
-            {% if selected %}
-              <span>{{ s_contact.type|capitalize }}</span>
-              <span>|</span>
-              <span>{{ s_contact.phone }}</span>
-            {% else %}
-              <span>Sélectionnez une carte à gauche</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-      <div class="chat-header-actions">
-        <span class="chip whatsapp">Connecté · WhatsApp Business</span>
-        <span class="chip">
-          {% if selected %}
-            Statut : {{ s_deal.status }}
-          {% else %}
-            En attente de sélection
-          {% endif %}
-        </span>
       </div>
     </header>
 
     <div class="chat-body">
-      <div class="chat-messages">
+      <div style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:#fafafa;">
         {% if selected %}
-        <div class="msg-row inbound">
-          <div class="msg-bubble inbound">
-            Exemple de message reçu sur WhatsApp pour cette affaire.
-            <div class="msg-meta">09:12 · WhatsApp</div>
-          </div>
-        </div>
-        <div class="msg-row outbound">
-          <div class="msg-bubble outbound">
-            Exemple de réponse envoyée depuis le CRM (API WhatsApp).
-            <div class="msg-meta">09:13 · Envoyé</div>
-          </div>
-        </div>
+          <div style="font-size:13px;color:var(--text);margin-bottom:8px;">Chat avec {{ s_contact.name }}</div>
+          <div style="font-size:12px;color:var(--text-soft);">Dernier message : {{ s_deal.last_message_preview or "—" }}</div>
         {% else %}
-        <div style="font-size:12px;color:var(--text-soft);margin-top:8px;">
-          Pour voir une conversation, sélectionnez une carte dans le pipeline.
-        </div>
+          <div style="font-size:12px;color:var(--text-soft);">Clique sur un contact pour afficher la conversation.</div>
         {% endif %}
       </div>
-
-      <aside class="chat-sidepanel">
-        <div class="sidepanel-title">Détails contact</div>
-        <div class="sidepanel-item">
-          <strong>
-            {% if selected %}
-              {{ s_contact.type|capitalize }}
-            {% else %}
-              —
-            {% endif %}
-          </strong>
-          <span>
-            {% if selected %}
-              {{ s_contact.company or "Sans société" }}
-            {% else %}
-              Sélectionnez une affaire
-            {% endif %}
-          </span>
-        </div>
-        <div class="sidepanel-item">
-          <strong>Affaire</strong>
-          <span>
-            {% if selected %}
-              {{ s_deal.title }}
-            {% else %}
-              Aucune sélection
-            {% endif %}
-          </span>
-          <span>
-            {% if selected and s_deal.amount_estimated is not none %}
-              Montant estimé : {{ "%.0f"|format(s_deal.amount_estimated) }} €
-            {% endif %}
-          </span>
-        </div>
-      </aside>
     </div>
 
-    <div class="chat-input-wrapper">
-      <div class="chat-input-row">
-        <input
-          class="chat-input"
-          type="text"
-          placeholder="Répondre sur WhatsApp… (ex. proposer un horaire, un devis, une photo)"
-        />
-        <button class="btn">Modèles</button>
-        <button class="btn btn-primary">Envoyer sur WhatsApp</button>
-      </div>
-      <div class="chat-footer-meta">
-        <span>Les réponses seront envoyées via l’API officielle WhatsApp Business.</span>
-        <span>Synchronisation de l’historique par numéro de téléphone.</span>
-      </div>
+    <div class="chat-input-wrapper" style="margin-top:10px;">
+      <form method="post" action="/deals/{{ s_deal.id if selected else 0 }}/send_message">
+        <input name="content" class="chat-input" placeholder="Envoyer un message WhatsApp..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:999px;" />
+        <div style="margin-top:6px;text-align:right;">
+          <button class="btn btn-primary">Envoyer</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- LISTE TOUS LES CONTACTS -->
+    <div class="chat-sidepanel" style="margin-top:14px;">
+      <div class="sidepanel-title" style="font-size:12px;text-transform:uppercase;color:var(--text-soft);margin-bottom:4px;">Tous les contacts</div>
+      {% for c in contacts_list %}
+      <a href="/?contact_id={{ c.id }}" style="text-decoration:none;">
+        <div class="sidepanel-item {% if selected and selected.contact.id == c.id %}active{% endif %}">
+          <strong>{{ c.name }}</strong><br>
+          <span style="font-size:11px;color:var(--text-soft);">{{ c.phone }}</span><br>
+          <span class="sidepanel-tag" style="font-size:10px;">{{ c.type|capitalize }}</span>
+        </div>
+      </a>
+      {% else %}
+      <div style="font-size:12px;color:var(--text-soft);">Aucun contact encore.</div>
+      {% endfor %}
     </div>
   </section>
 </main>
