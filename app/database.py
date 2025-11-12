@@ -23,9 +23,11 @@ DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL manquant. Définis cette variable sur Render.")
 
-# Normalisation pour Psycopg (compat Python 3.13 / SQLAlchemy 2.x)
+# Normalisation pour Psycopg v3 (et compat Python 3.13 / SQLAlchemy 2.x)
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
 # Pooling raisonnable pour Render
 engine = create_engine(
@@ -46,27 +48,18 @@ def get_session() -> Session:
 
 # --------- Mini-migrations idempotentes ----------
 def _alter_table_add_columns_if_needed(table: str, column_defs: list[str]):
-    """
-    column_defs: liste de fragments SQL 'ADD COLUMN IF NOT EXISTS ...'
-    """
     for frag in column_defs:
         stmt = f'ALTER TABLE "{table}" {frag};'
         with engine.begin() as conn:
             conn.execute(text(stmt))
 
 def _run_migrations():
-    """
-    Effectue des migrations très simples et sûres :
-      - s'assure que les tables existent
-      - ajoute des colonnes si elles sont manquantes
-    """
-    # 1) Création des tables déclarées dans les modèles
     SQLModel.metadata.create_all(engine)
 
     insp = inspect(engine)
     tables = set(insp.get_table_names())
 
-    # 2) CONTACT: s'assurer que 'type' existe
+    # CONTACT
     if "contact" in tables:
         cols = {c["name"] for c in insp.get_columns("contact")}
         if "type" not in cols:
@@ -74,7 +67,7 @@ def _run_migrations():
                 'ADD COLUMN IF NOT EXISTS "type" TEXT DEFAULT \'client\''
             ])
 
-    # 3) DEAL: colonnes méta de messages
+    # DEAL
     if "deal" in tables:
         cols = {c["name"] for c in insp.get_columns("deal")}
         adds = []
@@ -87,9 +80,8 @@ def _run_migrations():
         if adds:
             _alter_table_add_columns_if_needed("deal", adds)
 
-    # 4) MESSAGE: table et colonnes (channel / direction / content / created_at)
+    # MESSAGE
     if "message" not in tables:
-        # Si la table n'existe pas (nouvelle base), la créer via metadata
         SQLModel.metadata.create_all(engine)
     else:
         cols = {c["name"] for c in insp.get_columns("message")}
@@ -111,8 +103,6 @@ def create_db_and_tables():
     try:
         _run_migrations()
     except Exception as e:
-        # Log léger sans exposer le mot de passe
         safe_url = _mask_url(DATABASE_URL)
         print(f"[DB] Erreur migrations sur {safe_url}: {e}")
-        # On tente au minimum la création brute
         SQLModel.metadata.create_all(engine)
