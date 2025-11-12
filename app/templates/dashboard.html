@@ -5,136 +5,232 @@
   <title>CRM WhatsApp Artisans</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root { --bg:#f7f7fb; --card:#fff; --muted:#6b7280; --text:#111827; --line:#e5e7eb; --brand:#0f172a; }
-    html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial; }
-    a { color:inherit; text-decoration:none; }
-    .layout { display:grid; grid-template-columns: 240px 1fr 420px; gap:16px; padding:16px; }
-    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; }
-    .sidebar { padding:12px; position:sticky; top:16px; height: calc(100vh - 32px); overflow:auto; }
-    .sidebar h3 { margin:6px 0 12px; font-size:14px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
-    .sidebar-nav a { display:block; padding:10px 12px; border-radius:10px; margin-bottom:6px; border:1px solid transparent; }
-    .sidebar-nav a.active { background:#eef2ff; border-color:#e0e7ff; }
-    .sidebar .filter { margin-top:14px; }
-    .btn { display:inline-block; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#fff; cursor:pointer; }
-    .btn-primary { background:var(--brand); color:#fff; border-color:var(--brand); }
-    .kanban { display:grid; grid-template-columns: repeat(4, minmax(220px,1fr)); gap:12px; }
-    .col { padding:8px; }
-    .col h4 { margin:6px 6px 10px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
-    .deal { padding:10px; border:1px solid var(--line); border-radius:10px; margin:8px 0; background:#fff; }
-    .deal .name { font-weight:600; }
-    .deal .meta { color:var(--muted); font-size:12px; margin-top:4px; }
-    .right { padding:0; display:flex; flex-direction:column; height: calc(100vh - 32px); position:sticky; top:16px; }
-    .right-header { padding:12px 14px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
-    .right-body { display:grid; grid-template-columns: 240px 1fr; height:100%; }
-    .contacts { border-right:1px solid var(--line); overflow:auto; }
-    .contacts .group { padding:8px 12px; }
-    .contacts .c { padding:8px 10px; border-radius:8px; display:flex; align-items:center; justify-content:space-between; border:1px solid transparent; }
-    .contacts .c.active { background:#eef2ff; border-color:#e0e7ff; }
-    .thread { display:flex; flex-direction:column; height:100%; }
-    .messages { padding:12px 14px; overflow:auto; flex:1; background:#fafafa; border-bottom:1px solid var(--line); }
-    .msg { display:flex; margin:6px 0; }
-    .msg.in { justify-content:flex-start; }
-    .msg.out { justify-content:flex-end; }
-    .bubble { max-width:70%; border:1px solid var(--line); background:#fff; padding:10px 12px; border-radius:12px; position:relative; }
-    .msg.out .bubble { background:#f1f5ff; }
-    .bubble .meta { display:block; color:var(--muted); font-size:11px; margin-top:6px; text-align:right; }
-    .composer { padding:12px; display:flex; gap:8px; }
-    .composer textarea { flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--line); resize:vertical; min-height:44px; }
-    .toolbar { padding:8px 12px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:8px; }
-    .status-form select { padding:8px 10px; border-radius:8px; border:1px solid var(--line); }
-    .muted { color:var(--muted); }
-    .small { font-size:12px; }
+    :root{
+      --bg:#0b1220;           /* fond général sombre bleu nuit pour contraster le bandeau */
+      --bg-panel:#0f172a;     /* panneau */
+      --sidebar-grad1:#4f46e5;/* indigo */
+      --sidebar-grad2:#06b6d4;/* cyan */
+      --card:#0b1220;
+      --line:#1f2a44;
+      --text:#e5e7eb;
+      --muted:#94a3b8;
+      --brand:#60a5fa;        /* bleu clair accents */
+      --chip-new:#22c55e;     /* vert */
+      --chip-quote:#f59e0b;   /* orange */
+      --chip-sched:#3b82f6;   /* bleu */
+      --chip-closed:#a855f7;  /* violet */
+      --bubble-in:#0f172a;
+      --bubble-out:#1e293b;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial}
+    a{color:inherit;text-decoration:none}
+    .app{
+      display:grid;
+      grid-template-columns: 260px 1fr 520px;
+      min-height:100vh;
+    }
+    /* Bandeau gauche coloré */
+    .sidebar{
+      background: linear-gradient(180deg, var(--sidebar-grad1) 0%, var(--sidebar-grad2) 100%);
+      color:#fff;
+      padding:18px 14px;
+      position:sticky; top:0; height:100vh; overflow:auto;
+    }
+    .brand{
+      display:flex; align-items:center; gap:10px; margin-bottom:18px;
+      font-weight:800; letter-spacing:.2px;
+    }
+    .brand .dot{width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.25)}
+    .side-section{margin-top:18px}
+    .side-title{opacity:.9;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px}
+    .nav a{
+      display:flex;align-items:center;gap:8px;
+      padding:10px 12px;border-radius:10px;margin-bottom:6px;
+      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+    }
+    .nav a.active{background:rgba(255,255,255,.18)}
+    .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:6px 8px;border-radius:999px;background:rgba(255,255,255,.1)}
+    .chips{display:flex;flex-wrap:wrap;gap:6px}
+    .chips a{padding:6px 10px;border:1px solid rgba(255,255,255,.18);border-radius:999px}
+    /* Zone centrale (Kanban) */
+    .center{
+      padding:18px; border-right:1px solid var(--line);
+    }
+    .kanban{
+      display:grid; gap:14px;
+      grid-template-columns: repeat(4, minmax(240px,1fr));
+    }
+    .col{
+      background:var(--bg-panel); border:1px solid var(--line); border-radius:14px; overflow:hidden;
+    }
+    .col-head{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 12px; border-bottom:1px solid var(--line); font-weight:700;
+    }
+    .badge{font-size:11px; padding:4px 8px; border-radius:999px; opacity:.9}
+    .b-new{background:rgba(34,197,94,.15); color:#22c55e; border:1px solid rgba(34,197,94,.25)}
+    .b-quote{background:rgba(245,158,11,.15); color:#f59e0b; border:1px solid rgba(245,158,11,.25)}
+    .b-sched{background:rgba(59,130,246,.15); color:#3b82f6; border:1px solid rgba(59,130,246,.25)}
+    .b-closed{background:rgba(168,85,247,.15); color:#a855f7; border:1px solid rgba(168,85,247,.25)}
+    .card{
+      margin:10px; padding:10px; border:1px solid var(--line); border-radius:12px; background:#0b1324;
+    }
+    .deal-name{font-weight:700}
+    .deal-meta{color:var(--muted); font-size:12px; margin-top:4px}
+    .deal-actions{margin-top:10px}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);cursor:pointer;background:#0b1324;color:var(--text)}
+    .btn-primary{background:var(--brand); border-color:var(--brand); color:#0b1220}
+    /* Panneau droit (conversation) */
+    .right{display:flex;flex-direction:column; height:100vh; position:sticky; top:0;}
+    .right-head{
+      background:var(--bg-panel); border-bottom:1px solid var(--line);
+      padding:12px 14px; display:flex; align-items:center; gap:10px;
+    }
+    .statusbar{
+      background:var(--bg-panel); border-bottom:1px solid var(--line);
+      padding:10px 14px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+    }
+    .statusbar select{background:#0b1324;border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:8px}
+    .right-body{
+      display:grid; grid-template-columns: 260px 1fr; height:100%;
+      background:linear-gradient(180deg, #0b1220 0%, #0b1220 30%, #0d1630 100%);
+    }
+    .contacts{border-right:1px solid var(--line); overflow:auto}
+    .contacts .list{padding:10px}
+    .contact{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px; border-radius:10px; margin-bottom:6px; background:rgba(255,255,255,.03); border:1px solid var(--line)
+    }
+    .contact.active{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.35)}
+    .contact .type{font-size:12px;color:var(--muted)}
+    .thread{display:flex; flex-direction:column; height:100%}
+    .messages{flex:1; overflow:auto; padding:14px}
+    .msg{display:flex; margin:8px 0}
+    .msg.in{justify-content:flex-start}
+    .msg.out{justify-content:flex-end}
+    .bubble{
+      max-width:70%; padding:10px 12px; border-radius:14px; border:1px solid var(--line);
+      background:var(--bubble-in)
+    }
+    .msg.out .bubble{background:var(--bubble-out)}
+    .bubble .meta{display:block;margin-top:6px;font-size:11px;color:var(--muted);text-align:right}
+    .composer{
+      border-top:1px solid var(--line); padding:12px; background:var(--bg-panel); display:flex; gap:8px
+    }
+    .composer textarea{
+      flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+      background:#0b1324; color:var(--text); resize:vertical; min-height:46px
+    }
   </style>
 </head>
 <body>
-  <div class="layout">
-    <!-- Sidebar -->
-    <aside class="card sidebar">
-      <h3>Navigation</h3>
-      <nav class="sidebar-nav">
-        <a class="active" href="/"><span>Pipeline WhatsApp</span></a>
-        <a href="/contacts"><span>Contacts</span></a>
-        <a href="/contacts/new"><span>+ Nouveau contact</span></a>
-      </nav>
+  <div class="app">
+    <!-- Bandeau gauche -->
+    <aside class="sidebar">
+      <div class="brand"><span class="dot"></span> <div>RDV-Pro • WhatsApp CRM</div></div>
 
-      <div class="filter">
-        <h3>Filtrer par profil</h3>
-        <div>
-          <a class="btn" href="/">Tous</a>
-          <a class="btn" href="/?profile=client">Clients</a>
-          <a class="btn" href="/?profile=prospect">Prospects</a>
-          <a class="btn" href="/?profile=fournisseur">Fournisseurs</a>
-          <a class="btn" href="/?profile=autre">Autres</a>
+      <div class="side-section">
+        <div class="side-title">Navigation</div>
+        <nav class="nav">
+          <a class="active" href="/"><span>Pipeline WhatsApp</span></a>
+          <a href="/contacts"><span>Contacts</span></a>
+          <a href="/contacts/new"><span>+ Nouveau contact</span></a>
+        </nav>
+      </div>
+
+      <div class="side-section">
+        <div class="side-title">Profils</div>
+        <div class="chips">
+          <a href="/">Tous</a>
+          <a href="/?profile=client">Clients</a>
+          <a href="/?profile=prospect">Prospects</a>
+          <a href="/?profile=fournisseur">Fournisseurs</a>
+          <a href="/?profile=autre">Autres</a>
         </div>
       </div>
     </aside>
 
-    <!-- Kanban -->
-    <section class="kanban">
-      {% for col in columns %}
-      <div class="card col">
-        <h4>{{ col.label }}</h4>
-        {% for item in deals_by_status[col.id] %}
-          <div class="deal">
-            <div class="name">{{ item.contact.name }}</div>
-            <div class="meta small muted">
-              {{ item.contact.phone }} • {{ item.deal.last_message_channel or '—' }} •
-              {{ item.deal.last_message_at.astimezone().strftime('%d/%m %H:%M') if item.deal.last_message_at else '—' }}
+    <!-- Zone Kanban -->
+    <main class="center">
+      <section class="kanban">
+        {% for col in columns %}
+          <div class="col">
+            <div class="col-head">
+              <span>{{ col.label }}</span>
+              {% if col.id == 'new' %}
+                <span class="badge b-new">{{ deals_by_status[col.id]|length }}</span>
+              {% elif col.id == 'quote' %}
+                <span class="badge b-quote">{{ deals_by_status[col.id]|length }}</span>
+              {% elif col.id == 'scheduled' %}
+                <span class="badge b-sched">{{ deals_by_status[col.id]|length }}</span>
+              {% else %}
+                <span class="badge b-closed">{{ deals_by_status[col.id]|length }}</span>
+              {% endif %}
             </div>
-            <div style="margin-top:8px;">
-              <a class="btn" href="/?contact_id={{ item.contact.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">Ouvrir</a>
+            <div>
+              {% for item in deals_by_status[col.id] %}
+                <div class="card">
+                  <div class="deal-name">{{ item.contact.name }}</div>
+                  <div class="deal-meta">
+                    {{ item.contact.phone }} • {{ item.deal.last_message_channel or '—' }} •
+                    {{ item.deal.last_message_at.astimezone().strftime('%d/%m %H:%M') if item.deal.last_message_at else '—' }}
+                  </div>
+                  <div class="deal-actions">
+                    <a class="btn" href="/?contact_id={{ item.contact.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">Ouvrir</a>
+                  </div>
+                </div>
+              {% else %}
+                <div class="deal-meta" style="padding:10px">Aucune affaire</div>
+              {% endfor %}
             </div>
           </div>
-        {% else %}
-          <div class="muted small" style="padding:6px 8px;">Aucune affaire</div>
         {% endfor %}
-      </div>
-      {% endfor %}
-    </section>
+      </section>
+    </main>
 
-    <!-- Right panel -->
-    <aside class="card right">
-      <div class="right-header">
+    <!-- Panneau conversation -->
+    <aside class="right">
+      <div class="right-head">
         {% if selected %}
-          <div style="font-weight:700">{{ selected.contact.name }}</div>
-          <div class="muted">•</div>
-          <div class="muted small">{{ selected.contact.phone }}</div>
+          <div style="font-weight:800">{{ selected.contact.name }}</div>
+          <div class="chip">📞 {{ selected.contact.phone }}</div>
         {% else %}
-          <div class="muted">Sélectionnez un contact</div>
+          <div class="chip">Sélectionnez un contact</div>
         {% endif %}
       </div>
 
-      <div class="toolbar">
+      <div class="statusbar">
         {% if selected %}
-        <form class="status-form" method="post" action="/deals/{{ selected.deal.id }}/status">
-          <input type="hidden" name="next" value="/?contact_id={{ selected.contact.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
-          <select name="status" onchange="this.form.submit()">
-            {% for val, label in status_options %}
-              <option value="{{ val }}" {% if selected.deal.status==val %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </form>
+          <form method="post" action="/deals/{{ selected.deal.id }}/status">
+            <input type="hidden" name="next" value="/?contact_id={{ selected.contact.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
+            <select name="status" onchange="this.form.submit()">
+              {% for val, label in status_options %}
+                <option value="{{ val }}" {% if selected.deal.status==val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </form>
         {% endif %}
-        <div class="muted small">Profil : <strong>{{ current_profile }}</strong></div>
+        <div style="color:var(--muted);font-size:12px">Profil : <strong>{{ current_profile }}</strong></div>
       </div>
 
       <div class="right-body">
         <!-- Liste contacts -->
         <div class="contacts">
-          <div class="group">
+          <div class="list">
             {% for c in contacts_list %}
-              <a class="c {% if selected and selected.contact.id==c.id %}active{% endif %}"
+              <a class="contact {% if selected and selected.contact.id==c.id %}active{% endif %}"
                  href="/?contact_id={{ c.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
                 <span>{{ c.name }}</span>
-                <span class="muted small">{{ c.type }}</span>
+                <span class="type">{{ c.type }}</span>
               </a>
             {% endfor %}
           </div>
         </div>
 
-        <!-- Fil de messages -->
+        <!-- Fil messages -->
         <div class="thread">
-          <div class="messages">
+          <div class="messages" id="messages">
             {% if messages %}
               {% for m in messages %}
                 <div class="msg {{ 'out' if m.direction=='out' else 'in' }}">
@@ -145,24 +241,31 @@
                 </div>
               {% endfor %}
             {% else %}
-              <div class="muted small">Aucun message à afficher.</div>
+              <div class="deal-meta">Aucun message à afficher.</div>
             {% endif %}
           </div>
 
-          <!-- Composer -->
           <div class="composer">
             {% if selected %}
-            <form method="post" action="/deals/{{ selected.deal.id }}/send_message" style="display:flex; gap:8px; width:100%;">
-              <textarea name="content" placeholder="Écrire un message WhatsApp…"></textarea>
-              <button class="btn btn-primary" type="submit">Envoyer</button>
-            </form>
+              <form method="post" action="/deals/{{ selected.deal.id }}/send_message" style="display:flex;gap:8px;width:100%;">
+                <textarea name="content" placeholder="Écrire un message WhatsApp…"></textarea>
+                <button class="btn btn-primary" type="submit">Envoyer</button>
+              </form>
             {% else %}
-              <div class="muted">Sélectionnez un contact pour écrire.</div>
+              <div class="deal-meta">Sélectionnez un contact pour écrire.</div>
             {% endif %}
           </div>
         </div>
       </div>
     </aside>
   </div>
+
+  <script>
+    // Auto-scroll en bas du fil au chargement
+    (function(){
+      const el = document.getElementById('messages');
+      if(el) el.scrollTop = el.scrollHeight;
+    })();
+  </script>
 </body>
 </html>
