@@ -1,47 +1,46 @@
 {% extends "base.html" %}
-{% block title %}Contacts - CRM WhatsApp{% endblock %}
+{% block title %}Contacts - CRM WhatsApp Artisans{% endblock %}
 
 {% block content %}
 <main class="main-content">
   <section class="panel">
-    <div class="panel-header">
-      <div class="panel-title-block">
-        <div class="panel-title">Contacts</div>
-        <div class="panel-subtitle">Liste des clients, prospects et fournisseurs.</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div>
+        <div style="font-size:16px;font-weight:600;">Contacts</div>
+        <div style="font-size:12px;color:var(--text-soft);">Liste de tous les contacts, avec édition.</div>
       </div>
-      <div class="panel-filters">
-        <a href="/contacts/new" class="btn btn-primary">+ Nouveau contact</a>
-      </div>
+      <a class="btn btn-primary" href="/contacts/new">+ Nouveau contact</a>
     </div>
 
     <div style="overflow:auto;">
-      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+      <table style="width:100%;border-collapse:collapse;">
         <thead>
-          <tr style="text-align:left; border-bottom:1px solid var(--border); color:var(--text-soft);">
+          <tr style="text-align:left;border-bottom:1px solid var(--border);">
             <th style="padding:8px;">Nom</th>
             <th style="padding:8px;">Type</th>
             <th style="padding:8px;">Téléphone</th>
             <th style="padding:8px;">Email</th>
             <th style="padding:8px;">Société</th>
             <th style="padding:8px;">Tags</th>
+            <th style="padding:8px;">Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for c in contacts %}
           <tr style="border-bottom:1px solid var(--border);">
             <td style="padding:8px;">{{ c.name }}</td>
-            <td style="padding:8px; text-transform:capitalize;">{{ c.type }}</td>
+            <td style="padding:8px;text-transform:capitalize;">{{ c.type }}</td>
             <td style="padding:8px;">{{ c.phone }}</td>
             <td style="padding:8px;">{{ c.email or "—" }}</td>
             <td style="padding:8px;">{{ c.company or "—" }}</td>
             <td style="padding:8px;">{{ c.tags or "—" }}</td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="6" style="padding:8px; color:var(--text-soft);">
-              Aucun contact encore.
+            <td style="padding:8px;white-space:nowrap;">
+              <a class="btn" href="/?contact_id={{ c.id }}">Ouvrir</a>
+              <a class="btn" href="/contacts/{{ c.id }}/edit">Modifier</a>
             </td>
           </tr>
+          {% else %}
+          <tr><td colspan="7" style="padding:10px;color:var(--text-soft);">Aucun contact.</td></tr>
           {% endfor %}
         </tbody>
       </table>
