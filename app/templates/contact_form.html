@@ -1,52 +1,67 @@
 {% extends "base.html" %}
-{% block title %}Nouveau contact - CRM WhatsApp{% endblock %}
+{% block title %}{{ 'Nouveau contact' if mode=='new' else 'Modifier contact' }} - CRM{% endblock %}
 
 {% block content %}
 <main class="main-content">
   <section class="panel">
-    <div class="panel-header">
-      <div class="panel-title-block">
-        <div class="panel-title">Nouveau contact</div>
-        <div class="panel-subtitle">Créer un contact et une affaire initiale.</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div>
+        <div style="font-size:16px;font-weight:600;">
+          {{ 'Créer un nouveau contact' if mode=='new' else 'Modifier le contact' }}
+        </div>
+        <div style="font-size:12px;color:var(--text-soft);">
+          {{ 'Saisissez les informations du contact.' if mode=='new' else 'Mettez à jour les informations du contact.' }}
+        </div>
       </div>
+      {% if mode=='new' %}
+        <a class="btn" href="/contacts">Annuler</a>
+      {% else %}
+        <a class="btn" href="/contacts">Retour</a>
+      {% endif %}
     </div>
 
-    <form method="post" action="/contacts/new" style="display:flex; flex-direction:column; gap:10px; max-width:520px;">
-      <label>Type
-        <select name="type" class="select" required>
+    <form method="post" action="{{ '/contacts/new' if mode=='new' else '/contacts/' ~ contact.id ~ '/edit' }}" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+      <div>
+        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Type</label>
+        <select name="type" class="chat-input" required>
           {% for t in contact_types %}
-            <option value="{{ t }}">{{ t|capitalize }}</option>
+            <option value="{{ t }}" {% if contact and contact.type==t %}selected{% endif %}>{{ t|capitalize }}</option>
           {% endfor %}
         </select>
-      </label>
+      </div>
 
-      <label>Nom complet
-        <input class="input" name="name" placeholder="Ex: Mme Dupont" required />
-      </label>
+      <div>
+        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Nom</label>
+        <input name="name" class="chat-input" required value="{{ contact.name if contact else '' }}">
+      </div>
 
-      <label>Téléphone (format international)
-        <input class="input" name="phone" placeholder="+9665..." required />
-      </label>
+      <div>
+        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Téléphone</label>
+        <input name="phone" class="chat-input" required value="{{ contact.phone if contact else '' }}">
+      </div>
 
-      <label>Email
-        <input class="input" name="email" placeholder="exemple@mail.com" />
-      </label>
+      <div>
+        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Email</label>
+        <input name="email" class="chat-input" value="{{ contact.email if contact else '' }}">
+      </div>
 
-      <label>Société
-        <input class="input" name="company" placeholder="Optionnel" />
-      </label>
+      <div>
+        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Société</label>
+        <input name="company" class="chat-input" value="{{ contact.company if contact else '' }}">
+      </div>
 
-      <label>Adresse
-        <input class="input" name="address" placeholder="Optionnel" />
-      </label>
+      <div>
+        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Adresse</label>
+        <input name="address" class="chat-input" value="{{ contact.address if contact else '' }}">
+      </div>
 
-      <label>Tags (séparés par des virgules)
-        <input class="input" name="tags" placeholder="Urgent,Nouveau" />
-      </label>
+      <div style="grid-column:1/-1;">
+        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Tags (séparés par des virgules)</label>
+        <input name="tags" class="chat-input" value="{{ contact.tags if contact else '' }}" placeholder="Urgent, Rappel, Chauffage">
+      </div>
 
-      <div style="display:flex; gap:8px;">
-        <a class="btn" href="/contacts">Annuler</a>
-        <button class="btn btn-primary" type="submit">Créer</button>
+      <div style="grid-column:1/-1;text-align:right;margin-top:6px;">
+        <button class="btn btn-primary">{{ 'Créer le contact' if mode=='new' else 'Enregistrer' }}</button>
       </div>
     </form>
   </section>
