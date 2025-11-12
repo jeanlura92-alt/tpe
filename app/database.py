@@ -1,8 +1,8 @@
 import os
 from contextlib import contextmanager
-
 from sqlmodel import SQLModel, create_engine, Session
 from sqlalchemy import text, inspect
+
 
 def _mask_url(url: str) -> str:
     try:
@@ -17,10 +17,12 @@ def _mask_url(url: str) -> str:
     except Exception:
         return url
 
+
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL manquant. Définis cette variable sur Render.")
 
+# forcer psycopg v3
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
 elif DATABASE_URL.startswith("postgresql://"):
@@ -42,14 +44,16 @@ def session_scope():
 def get_session() -> Session:
     return Session(engine)
 
+
 def _alter_table_add_columns_if_needed(table: str, column_defs: list[str]):
     for frag in column_defs:
         stmt = f'ALTER TABLE "{table}" {frag};'
         with engine.begin() as conn:
             conn.execute(text(stmt))
 
+
 def _run_migrations():
-    # Crée les tables connues par les modèles
+    # crée toutes les tables déclarées
     SQLModel.metadata.create_all(engine)
 
     insp = inspect(engine)
@@ -84,7 +88,7 @@ def _run_migrations():
         adds = []
         if "deal_id" not in cols:
             adds.append('ADD COLUMN IF NOT EXISTS "deal_id" INTEGER')
-        if "contact_id" not in cols:  # <-- AJOUT
+        if "contact_id" not in cols:
             adds.append('ADD COLUMN IF NOT EXISTS "contact_id" INTEGER')
         if "direction" not in cols:
             adds.append('ADD COLUMN IF NOT EXISTS "direction" TEXT')
@@ -94,17 +98,27 @@ def _run_migrations():
             adds.append('ADD COLUMN IF NOT EXISTS "content" TEXT NOT NULL DEFAULT \'\'')
         if "created_at" not in cols:
             adds.append('ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW()')
+        if "sent_at" not in cols:
+            adds.append('ADD COLUMN IF NOT EXISTS "sent_at" TIMESTAMPTZ DEFAULT NOW()')  # <-- assure une valeur
+
         if adds:
             _alter_table_add_columns_if_needed("message", adds)
 
-        # Backfill contact_id si null (jointure via deal)
+        # backfill sent_at & contact_id si null
         with engine.begin() as conn:
+            # sent_at = created_at si absent
+            conn.execute(text("""
+                UPDATE "message" SET sent_at = COALESCE(sent_at, created_at, NOW())
+                WHERE sent_at IS NULL
+            """))
+            # contact_id depuis deal
             conn.execute(text("""
                 UPDATE "message" m
                 SET contact_id = d.contact_id
                 FROM "deal" d
                 WHERE m.deal_id = d.id AND (m.contact_id IS NULL OR m.contact_id = 0)
             """))
+
 
 def create_db_and_tables():
     try:
