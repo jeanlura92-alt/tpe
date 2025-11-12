@@ -2,156 +2,124 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <title>CRM WhatsApp Artisans</title>
+  <title>CRM WhatsApp Artisans — Pipeline</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{
-      --bg:#0b1220;           /* fond général sombre bleu nuit pour contraster le bandeau */
-      --bg-panel:#0f172a;     /* panneau */
-      --sidebar-grad1:#4f46e5;/* indigo */
-      --sidebar-grad2:#06b6d4;/* cyan */
-      --card:#0b1220;
+      /* Palette identique à l’onglet Contacts */
+      --bg:#0b1220;
+      --panel:#0f172a;
+      --sidebar-grad1:#4f46e5; /* indigo */
+      --sidebar-grad2:#06b6d4; /* cyan */
+      --card:#0b1324;
       --line:#1f2a44;
       --text:#e5e7eb;
       --muted:#94a3b8;
-      --brand:#60a5fa;        /* bleu clair accents */
-      --chip-new:#22c55e;     /* vert */
-      --chip-quote:#f59e0b;   /* orange */
-      --chip-sched:#3b82f6;   /* bleu */
-      --chip-closed:#a855f7;  /* violet */
+      --brand:#60a5fa;
+
+      --badge-new:#22c55e;
+      --badge-quote:#f59e0b;
+      --badge-sched:#3b82f6;
+      --badge-closed:#a855f7;
+
       --bubble-in:#0f172a;
       --bubble-out:#1e293b;
     }
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial}
     a{color:inherit;text-decoration:none}
-    .app{
-      display:grid;
-      grid-template-columns: 260px 1fr 520px;
-      min-height:100vh;
-    }
-    /* Bandeau gauche coloré */
+
+    /* Layout 3 colonnes : sidebar / kanban / conversation */
+    .app{display:grid;grid-template-columns:260px 1fr 520px;min-height:100vh}
+
+    /* Sidebar identique à Contacts */
     .sidebar{
-      background: linear-gradient(180deg, var(--sidebar-grad1) 0%, var(--sidebar-grad2) 100%);
-      color:#fff;
-      padding:18px 14px;
-      position:sticky; top:0; height:100vh; overflow:auto;
+      background:linear-gradient(180deg,var(--sidebar-grad1) 0%,var(--sidebar-grad2) 100%);
+      color:#fff; padding:18px 14px; position:sticky; top:0; height:100vh; overflow:auto
     }
-    .brand{
-      display:flex; align-items:center; gap:10px; margin-bottom:18px;
-      font-weight:800; letter-spacing:.2px;
-    }
+    .brand{display:flex;align-items:center;gap:10px;margin-bottom:18px;font-weight:800;letter-spacing:.2px}
     .brand .dot{width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.25)}
-    .side-section{margin-top:18px}
     .side-title{opacity:.9;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px}
     .nav a{
       display:flex;align-items:center;gap:8px;
       padding:10px 12px;border-radius:10px;margin-bottom:6px;
-      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12)
     }
     .nav a.active{background:rgba(255,255,255,.18)}
-    .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:6px 8px;border-radius:999px;background:rgba(255,255,255,.1)}
-    .chips{display:flex;flex-wrap:wrap;gap:6px}
-    .chips a{padding:6px 10px;border:1px solid rgba(255,255,255,.18);border-radius:999px}
-    /* Zone centrale (Kanban) */
-    .center{
-      padding:18px; border-right:1px solid var(--line);
-    }
-    .kanban{
-      display:grid; gap:14px;
-      grid-template-columns: repeat(4, minmax(240px,1fr));
-    }
-    .col{
-      background:var(--bg-panel); border:1px solid var(--line); border-radius:14px; overflow:hidden;
-    }
-    .col-head{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:10px 12px; border-bottom:1px solid var(--line); font-weight:700;
-    }
-    .badge{font-size:11px; padding:4px 8px; border-radius:999px; opacity:.9}
-    .b-new{background:rgba(34,197,94,.15); color:#22c55e; border:1px solid rgba(34,197,94,.25)}
-    .b-quote{background:rgba(245,158,11,.15); color:#f59e0b; border:1px solid rgba(245,158,11,.25)}
-    .b-sched{background:rgba(59,130,246,.15); color:#3b82f6; border:1px solid rgba(59,130,246,.25)}
-    .b-closed{background:rgba(168,85,247,.15); color:#a855f7; border:1px solid rgba(168,85,247,.25)}
-    .card{
-      margin:10px; padding:10px; border:1px solid var(--line); border-radius:12px; background:#0b1324;
-    }
+    .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+    .chips a{padding:6px 10px;border:1px solid rgba(255,255,255,.18);border-radius:999px;background:rgba(255,255,255,.08)}
+
+    /* Kanban (zone centrale) */
+    .center{padding:18px;border-right:1px solid var(--line)}
+    .kanban{display:grid;gap:14px;grid-template-columns:repeat(4,minmax(240px,1fr))}
+    .col{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+    .col-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);font-weight:700}
+    .badge{font-size:11px;padding:4px 8px;border-radius:999px;opacity:.95;border:1px solid transparent}
+    .b-new{color:var(--badge-new);background:rgba(34,197,94,.15);border-color:rgba(34,197,94,.25)}
+    .b-quote{color:var(--badge-quote);background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.25)}
+    .b-sched{color:var(--badge-sched);background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.25)}
+    .b-closed{color:var(--badge-closed);background:rgba(168,85,247,.15);border-color:rgba(168,85,247,.25)}
+    .card{margin:10px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
     .deal-name{font-weight:700}
-    .deal-meta{color:var(--muted); font-size:12px; margin-top:4px}
-    .deal-actions{margin-top:10px}
-    .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);cursor:pointer;background:#0b1324;color:var(--text)}
-    .btn-primary{background:var(--brand); border-color:var(--brand); color:#0b1220}
-    /* Panneau droit (conversation) */
-    .right{display:flex;flex-direction:column; height:100vh; position:sticky; top:0;}
-    .right-head{
-      background:var(--bg-panel); border-bottom:1px solid var(--line);
-      padding:12px 14px; display:flex; align-items:center; gap:10px;
-    }
-    .statusbar{
-      background:var(--bg-panel); border-bottom:1px solid var(--line);
-      padding:10px 14px; display:flex; align-items:center; justify-content:space-between; gap:12px;
-    }
-    .statusbar select{background:#0b1324;border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:8px}
-    .right-body{
-      display:grid; grid-template-columns: 260px 1fr; height:100%;
-      background:linear-gradient(180deg, #0b1220 0%, #0b1220 30%, #0d1630 100%);
-    }
-    .contacts{border-right:1px solid var(--line); overflow:auto}
+    .deal-meta{color:var(--muted);font-size:12px;margin-top:4px}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);cursor:pointer;background:var(--card);color:var(--text)}
+    .btn-primary{background:var(--brand);border-color:var(--brand);color:#0b1220}
+
+    /* Panneau droit (liste contacts + fil) */
+    .right{display:flex;flex-direction:column;height:100vh;position:sticky;top:0}
+    .right-head{background:var(--panel);border-bottom:1px solid var(--line);padding:12px 14px;display:flex;align-items:center;gap:10px}
+    .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:6px 8px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18)}
+    .statusbar{background:var(--panel);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .statusbar select{background:var(--card);border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:8px}
+    .right-body{display:grid;grid-template-columns:260px 1fr;height:100%;background:linear-gradient(180deg,#0b1220 0%,#0b1220 30%,#0d1630 100%)}
+
+    /* Liste contacts — styles identiques à Contacts */
+    .contacts{border-right:1px solid var(--line);overflow:auto}
     .contacts .list{padding:10px}
     .contact{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:10px; border-radius:10px; margin-bottom:6px; background:rgba(255,255,255,.03); border:1px solid var(--line)
+      display:flex;align-items:center;justify-content:space-between;
+      padding:10px;border-radius:10px;margin-bottom:6px;background:rgba(255,255,255,.03);border:1px solid var(--line)
     }
-    .contact.active{background:rgba(96,165,250,.15); border-color:rgba(96,165,250,.35)}
+    .contact.active{background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.35)}
     .contact .type{font-size:12px;color:var(--muted)}
-    .thread{display:flex; flex-direction:column; height:100%}
-    .messages{flex:1; overflow:auto; padding:14px}
-    .msg{display:flex; margin:8px 0}
+
+    /* Fil de messages */
+    .thread{display:flex;flex-direction:column;height:100%}
+    .messages{flex:1;overflow:auto;padding:14px}
+    .msg{display:flex;margin:8px 0}
     .msg.in{justify-content:flex-start}
     .msg.out{justify-content:flex-end}
-    .bubble{
-      max-width:70%; padding:10px 12px; border-radius:14px; border:1px solid var(--line);
-      background:var(--bubble-in)
-    }
+    .bubble{max-width:70%;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--bubble-in)}
     .msg.out .bubble{background:var(--bubble-out)}
     .bubble .meta{display:block;margin-top:6px;font-size:11px;color:var(--muted);text-align:right}
-    .composer{
-      border-top:1px solid var(--line); padding:12px; background:var(--bg-panel); display:flex; gap:8px
-    }
-    .composer textarea{
-      flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
-      background:#0b1324; color:var(--text); resize:vertical; min-height:46px
-    }
+    .composer{border-top:1px solid var(--line);padding:12px;background:var(--panel);display:flex;gap:8px}
+    .composer textarea{flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);resize:vertical;min-height:46px}
   </style>
 </head>
 <body>
   <div class="app">
-    <!-- Bandeau gauche -->
+    <!-- Sidebar (même que Contacts) -->
     <aside class="sidebar">
-      <div class="brand"><span class="dot"></span> <div>RDV-Pro • WhatsApp CRM</div></div>
+      <div class="brand"><span class="dot"></span><div>RDV-Pro • WhatsApp CRM</div></div>
 
-      <div class="side-section">
-        <div class="side-title">Navigation</div>
-        <nav class="nav">
-          <a class="active" href="/"><span>Pipeline WhatsApp</span></a>
-          <a href="/contacts"><span>Contacts</span></a>
-          <a href="/contacts/new"><span>+ Nouveau contact</span></a>
-        </nav>
-      </div>
+      <div class="side-title">Navigation</div>
+      <nav class="nav">
+        <a class="active" href="/"><span>Pipeline WhatsApp</span></a>
+        <a href="/contacts"><span>Contacts</span></a>
+        <a href="/contacts/new"><span>+ Nouveau contact</span></a>
+      </nav>
 
-      <div class="side-section">
-        <div class="side-title">Profils</div>
-        <div class="chips">
-          <a href="/">Tous</a>
-          <a href="/?profile=client">Clients</a>
-          <a href="/?profile=prospect">Prospects</a>
-          <a href="/?profile=fournisseur">Fournisseurs</a>
-          <a href="/?profile=autre">Autres</a>
-        </div>
+      <div class="side-title" style="margin-top:18px">Profils</div>
+      <div class="chips">
+        <a href="/">Tous</a>
+        <a href="/?profile=client">Clients</a>
+        <a href="/?profile=prospect">Prospects</a>
+        <a href="/?profile=fournisseur">Fournisseurs</a>
+        <a href="/?profile=autre">Autres</a>
       </div>
     </aside>
 
-    <!-- Zone Kanban -->
+    <!-- Kanban -->
     <main class="center">
       <section class="kanban">
         {% for col in columns %}
@@ -176,7 +144,7 @@
                     {{ item.contact.phone }} • {{ item.deal.last_message_channel or '—' }} •
                     {{ item.deal.last_message_at.astimezone().strftime('%d/%m %H:%M') if item.deal.last_message_at else '—' }}
                   </div>
-                  <div class="deal-actions">
+                  <div style="margin-top:10px">
                     <a class="btn" href="/?contact_id={{ item.contact.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">Ouvrir</a>
                   </div>
                 </div>
@@ -189,7 +157,7 @@
       </section>
     </main>
 
-    <!-- Panneau conversation -->
+    <!-- Panneau droit (identique look & feel Contacts) -->
     <aside class="right">
       <div class="right-head">
         {% if selected %}
@@ -215,7 +183,7 @@
       </div>
 
       <div class="right-body">
-        <!-- Liste contacts -->
+        <!-- Liste contacts (mêmes styles que l’onglet Contacts) -->
         <div class="contacts">
           <div class="list">
             {% for c in contacts_list %}
@@ -228,7 +196,7 @@
           </div>
         </div>
 
-        <!-- Fil messages -->
+        <!-- Fil de messages (historique complet) -->
         <div class="thread">
           <div class="messages" id="messages">
             {% if messages %}
@@ -261,11 +229,8 @@
   </div>
 
   <script>
-    // Auto-scroll en bas du fil au chargement
-    (function(){
-      const el = document.getElementById('messages');
-      if(el) el.scrollTop = el.scrollHeight;
-    })();
+    // Auto-scroll au bas de l’historique
+    (function(){ const el=document.getElementById('messages'); if(el) el.scrollTop=el.scrollHeight; })();
   </script>
 </body>
 </html>
