@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import select, Session, SQLModel
+from dateutil import parser as dtparser  # pagination par curseur (msgs_before)
 
 from .database import get_session, create_db_and_tables
 from .models import (
@@ -15,12 +16,14 @@ from .models import (
     DealStatus, ContactType, MessageDirection
 )
 
+# --- Config WhatsApp ---
 WA_TOKEN = os.getenv("META_WA_ACCESS_TOKEN", "").strip()
 WA_PHONE_NUMBER_ID = os.getenv("META_WA_PHONE_NUMBER_ID", "").strip()
 WA_VERIFY_TOKEN = os.getenv("META_WA_VERIFY_TOKEN", "").strip()
 GRAPH_API_BASE = "https://graph.facebook.com/v20.0"
 SEND_URL = f"{GRAPH_API_BASE}/{WA_PHONE_NUMBER_ID}/messages" if WA_PHONE_NUMBER_ID else None
 
+# --- App ---
 app = FastAPI(title="CRM WhatsApp Artisans")
 templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static", check_dir=False), name="static")
@@ -35,6 +38,7 @@ def on_startup():
         pass
 
 
+# --- Helpers ---
 def _pipeline_labels_for_profile(profile: Optional[str]) -> Dict[str, str]:
     base = {
         DealStatus.NEW: "Nouveaux messages",
@@ -76,13 +80,19 @@ def _get_pipeline_columns(profile: Optional[str]) -> List[Dict[str, str]]:
     ]
 
 
+# --- Vues ---
 @app.get("/", response_class=HTMLResponse)
 def dashboard(
     request: Request,
     session: Session = Depends(get_session),
     contact_id: int | None = None,
     profile: str | None = None,
+    msgs_before: str | None = None,
+    msgs_limit: int = 50,
 ):
+    """Dashboard principal (pipeline + panneau de conversation).
+       Pagination d'historique : on charge par défaut les 50 derniers messages,
+       et le bouton 'Afficher plus' recule le curseur temporel."""
     profile = profile if profile in {ContactType.CLIENT, ContactType.PROSPECT, ContactType.FOURNISSEUR, ContactType.AUTRE} else None
     columns = _get_pipeline_columns(profile)
 
@@ -116,12 +126,28 @@ def dashboard(
         (DealStatus.CLOSED, _pipeline_labels_for_profile(profile)[DealStatus.CLOSED]),
     ]
 
-    messages = []
+    # --- Historique messages : pagination par curseur (msgs_before) ---
+    messages: List[Message] = []
+    messages_next_cursor: Optional[str] = None
+    msgs_limit = max(1, min(int(msgs_limit or 50), 200))
+
     if selected:
         s_deal: Deal = selected["deal"]
-        messages = session.exec(
-            select(Message).where(Message.deal_id == s_deal.id).order_by(Message.created_at.asc())
-        ).all()
+        q = select(Message).where(Message.deal_id == s_deal.id)
+        if msgs_before:
+            try:
+                before_dt = dtparser.isoparse(msgs_before)
+                q = q.where(Message.sent_at < before_dt)
+            except Exception:
+                pass
+        q = q.order_by(Message.sent_at.desc()).limit(msgs_limit)
+        batch = session.exec(q).all()
+        # les plus récents d'abord, on inverse pour afficher ancien -> récent
+        batch.reverse()
+        messages = batch
+        if len(batch) >= msgs_limit:
+            # prochain curseur = plus ancien de ce lot
+            messages_next_cursor = batch[0].sent_at.isoformat() if batch[0].sent_at else batch[0].created_at.isoformat()
 
     return templates.TemplateResponse(
         "dashboard.html",
@@ -134,6 +160,8 @@ def dashboard(
             "status_options": status_options,
             "current_profile": profile or "tous",
             "messages": messages,
+            "messages_next_cursor": messages_next_cursor,
+            "messages_limit": msgs_limit,
         },
     )
 
@@ -184,7 +212,7 @@ async def send_whatsapp_message(
         content=content,
         channel="WhatsApp",
         created_at=now,
-        sent_at=now,  # <-- clé pour NOT NULL
+        sent_at=now,
     )
     session.add(msg)
 
@@ -194,9 +222,11 @@ async def send_whatsapp_message(
     session.add(deal)
     session.commit()
 
+    # retour sur le même contact
     return RedirectResponse(url=f"/?contact_id={contact.id}", status_code=303)
 
 
+# --- Webhook WhatsApp ---
 @app.get("/webhook/whatsapp")
 def whatsapp_webhook_verify(
     hub_mode: str = Query("", alias="hub.mode"),
@@ -229,6 +259,7 @@ async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session
                     if m.get("type") == "text":
                         text_body = (m.get("text", {}) or {}).get("body", "") or ""
 
+                    # contact
                     contact = session.exec(select(Contact).where(Contact.phone == from_msisdn)).first()
                     if not contact:
                         contact = Contact(
@@ -241,6 +272,7 @@ async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session
                         session.commit()
                         session.refresh(contact)
 
+                    # deal rattaché
                     deal = session.exec(
                         select(Deal).where(Deal.contact_id == contact.id).order_by(Deal.id.desc())
                     ).first()
@@ -259,7 +291,7 @@ async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session
                             content=text_body[:4000],
                             channel="WhatsApp",
                             created_at=now,
-                            sent_at=now,  # on renseigne pour satisfaire NOT NULL existant
+                            sent_at=now,
                         )
                         session.add(msg)
 
@@ -273,9 +305,11 @@ async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session
 
         return JSONResponse({"ok": True})
     except Exception as e:
+        # On ne 500 pas le webhook : statut 200 avec erreur pour visibilité
         return JSONResponse({"ok": False, "error": str(e)}, status_code=200)
 
 
+# --- Changement de statut depuis la fiche ---
 @app.post("/deals/{deal_id}/status")
 def update_deal_status(
     request: Request,
@@ -304,6 +338,7 @@ def update_deal_status(
     return RedirectResponse(url=redirect_url, status_code=303)
 
 
+# --- Annuaire contacts ---
 @app.get("/contacts", response_class=HTMLResponse)
 def contacts_list_view(request: Request, session: Session = Depends(get_session)):
     rows = session.exec(select(Contact).order_by(Contact.created_at.desc())).all()
