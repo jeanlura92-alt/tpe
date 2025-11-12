@@ -87,7 +87,7 @@ def dashboard(
     contact_id: int | None = None,
     profile: str | None = None,
 ):
-    """Dashboard simple sans pagination : fil complet pour le contact sélectionné."""
+    """Interface colorée + bandeau gauche, et affichage de tout l'historique des messages."""
     profile = profile if profile in {ContactType.CLIENT, ContactType.PROSPECT, ContactType.FOURNISSEUR, ContactType.AUTRE} else None
     columns = _get_pipeline_columns(profile)
 
@@ -129,7 +129,7 @@ def dashboard(
         ).all()
 
     return templates.TemplateResponse(
-        "dashboard.html",
+        "dashboard_color.html",
         {
             "request": request,
             "columns": columns,
