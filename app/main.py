@@ -7,10 +7,13 @@ from fastapi import FastAPI, Depends, Request, Form, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
-from sqlmodel import select, Session
+from sqlmodel import select, Session, SQLModel
 
 from .database import get_session, create_db_and_tables
-from .models import Contact, Deal, DealStatus, ContactType
+from .models import (
+    Contact, Deal, Message,
+    DealStatus, ContactType, MessageDirection
+)
 
 # ====== Config WhatsApp Cloud API ======
 WA_TOKEN = os.getenv("META_WA_ACCESS_TOKEN", "").strip()
@@ -27,11 +30,15 @@ app.mount("/static", StaticFiles(directory="app/static", check_dir=False), name=
 
 @app.on_event("startup")
 def on_startup():
-    # crée les tables manquantes + mini-migrations (dans database.py)
+    # crée tables manquantes (inclut Message)
     create_db_and_tables()
+    # sécurité: si l'app tournait avant l'ajout de Message, s'assurer que la table est bien là
+    try:
+        SQLModel.metadata.create_all(get_session().get_bind())
+    except Exception:
+        pass
 
 
-# ====== Pipeline libellés dynamiques ======
 def _pipeline_labels_for_profile(profile: Optional[str]) -> Dict[str, str]:
     base = {
         DealStatus.NEW: "Nouveaux messages",
@@ -114,6 +121,14 @@ def dashboard(
         (DealStatus.CLOSED, _pipeline_labels_for_profile(profile)[DealStatus.CLOSED]),
     ]
 
+    # Historique des messages pour le contact sélectionné
+    messages: List[Message] = []
+    if selected:
+        s_deal: Deal = selected["deal"]
+        messages = session.exec(
+            select(Message).where(Message.deal_id == s_deal.id).order_by(Message.created_at.asc())
+        ).all()
+
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -124,16 +139,13 @@ def dashboard(
             "contacts_list": contacts_list,
             "status_options": status_options,
             "current_profile": profile or "tous",
+            "messages": messages,
         },
     )
 
 
 # ====== WhatsApp: ENVOI ======
 async def wa_send_text(to_msisdn: str, text: str) -> Dict[str, Any]:
-    """
-    Envoi d'un message texte via WhatsApp Cloud API.
-    - to_msisdn au format E.164 (ex: +9665xxxxxxx)
-    """
     if not (WA_TOKEN and SEND_URL):
         return {"ok": False, "error": "WhatsApp API non configurée (token/phone_number_id)"}
 
@@ -173,15 +185,25 @@ async def send_whatsapp_message(
     if not contact or not contact.phone:
         return JSONResponse({"error": "contact inconnu ou sans numéro"}, status_code=404)
 
+    # Envoi WhatsApp
     result = await wa_send_text(contact.phone, content)
-    # Maj aperçu
+
+    # Persistance de l'OUTBOUND quoi qu'il arrive (on trace l'intention)
+    msg = Message(
+        deal_id=deal.id,
+        direction=MessageDirection.OUTBOUND,
+        content=content,
+        channel="WhatsApp",
+    )
+    session.add(msg)
+
+    # Mise à jour meta deal
     deal.last_message_preview = content[:200]
     deal.last_message_channel = "WhatsApp"
     deal.last_message_at = datetime.now(timezone.utc)
     session.add(deal)
     session.commit()
 
-    # On reste dans l'UI quoi qu'il arrive
     return RedirectResponse(url=f"/?contact_id={contact.id}", status_code=303)
 
 
@@ -215,7 +237,9 @@ async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session
                     from_msisdn = m.get("from")
                     if from_msisdn and not from_msisdn.startswith("+"):
                         from_msisdn = f"+{from_msisdn}"
-                    text_body = m.get("text", {}).get("body") if m.get("type") == "text" else ""
+                    text_body = ""
+                    if m.get("type") == "text":
+                        text_body = (m.get("text", {}) or {}).get("body", "") or ""
 
                     # Upsert Contact
                     contact = session.exec(select(Contact).where(Contact.phone == from_msisdn)).first()
@@ -229,40 +253,43 @@ async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session
                         session.add(contact)
                         session.commit()
                         session.refresh(contact)
+
+                    # Upsert Deal (dernier pour ce contact)
+                    deal = session.exec(
+                        select(Deal).where(Deal.contact_id == contact.id).order_by(Deal.id.desc())
+                    ).first()
+                    if not deal:
                         deal = Deal(
                             title="Conversation WhatsApp",
                             contact_id=contact.id,
                             status=DealStatus.NEW,
-                            last_message_preview=text_body or "",
-                            last_message_channel="WhatsApp",
-                            last_message_at=datetime.now(timezone.utc),
                         )
                         session.add(deal)
                         session.commit()
-                    else:
-                        deal = session.exec(
-                            select(Deal).where(Deal.contact_id == contact.id).order_by(Deal.id.desc())
-                        ).first()
-                        if not deal:
-                            deal = Deal(
-                                title="Conversation WhatsApp",
-                                contact_id=contact.id,
-                                status=DealStatus.NEW,
-                            )
-                            session.add(deal)
-                            session.commit()
-                            session.refresh(deal)
+                        session.refresh(deal)
 
-                        deal.last_message_preview = (text_body or "")[:200]
-                        deal.last_message_channel = "WhatsApp"
-                        deal.last_message_at = datetime.now(timezone.utc)
-                        if deal.status == DealStatus.CLOSED:
-                            deal.status = DealStatus.NEW
-                        session.add(deal)
-                        session.commit()
+                    # Enregistre le message entrant
+                    if text_body:
+                        msg = Message(
+                            deal_id=deal.id,
+                            direction=MessageDirection.INBOUND,
+                            content=text_body[:4000],
+                            channel="WhatsApp",
+                        )
+                        session.add(msg)
+
+                    # MAJ meta deal
+                    deal.last_message_preview = (text_body or "")[:200]
+                    deal.last_message_channel = "WhatsApp"
+                    deal.last_message_at = datetime.now(timezone.utc)
+                    if deal.status == DealStatus.CLOSED:
+                        deal.status = DealStatus.NEW
+                    session.add(deal)
+                    session.commit()
 
         return JSONResponse({"ok": True})
     except Exception as e:
+        # on renvoie 200 pour éviter replays agressifs, mais on logue l'erreur dans Render
         return JSONResponse({"ok": False, "error": str(e)}, status_code=200)
 
 
