@@ -1,18 +1,14 @@
 # app/main.py
 from typing import List, Dict, Any, Optional
-
 from fastapi import FastAPI, Depends, Request, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import select, Session
-
 from .database import get_session, create_db_and_tables
 from .models import Contact, Deal, DealStatus, ContactType
 
-
 app = FastAPI(title="CRM WhatsApp Artisans")
-
 templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static", check_dir=False), name="static")
 
@@ -33,7 +29,7 @@ def _get_pipeline_columns() -> List[Dict[str, str]]:
 
 # ====== UI: Dashboard / Kanban ======
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request, session: Session = Depends(get_session)):
+def dashboard(request: Request, session: Session = Depends(get_session), contact_id: int | None = None):
     columns = _get_pipeline_columns()
     stmt = select(Deal, Contact).join(Contact, Deal.contact_id == Contact.id)
     rows = session.exec(stmt).all()
@@ -44,11 +40,21 @@ def dashboard(request: Request, session: Session = Depends(get_session)):
             {"deal": deal, "contact": contact}
         )
 
-    selected: Optional[Dict[str, Any]] = None
-    for col in columns:
-        if deals_by_status[col["id"]]:
-            selected = deals_by_status[col["id"]][0]
-            break
+    # sélection du contact actif
+    selected = None
+    if contact_id:
+        for deal, contact in rows:
+            if contact.id == contact_id:
+                selected = {"deal": deal, "contact": contact}
+                break
+    else:
+        for col in columns:
+            if deals_by_status[col["id"]]:
+                selected = deals_by_status[col["id"]][0]
+                break
+
+    # liste de tous les contacts (pour panneau latéral)
+    contacts_list = session.exec(select(Contact).order_by(Contact.name)).all()
 
     return templates.TemplateResponse(
         "dashboard.html",
@@ -57,6 +63,7 @@ def dashboard(request: Request, session: Session = Depends(get_session)):
             "columns": columns,
             "deals_by_status": deals_by_status,
             "selected": selected,
+            "contacts_list": contacts_list,
         },
     )
 
@@ -64,7 +71,6 @@ def dashboard(request: Request, session: Session = Depends(get_session)):
 # ====== Webhook / Envoi WhatsApp (stubs) ======
 @app.post("/webhook/whatsapp")
 async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session)):
-    # TODO: parser payload, créer/mettre à jour Contact/Deal/Message
     return JSONResponse({"status": "ok", "detail": "webhook stub"})
 
 
@@ -86,7 +92,6 @@ async def send_whatsapp_message(
     if not contact:
         return JSONResponse({"error": "contact inconnu"}, status_code=404)
 
-    # TODO : appeler l’API WhatsApp Business et enregistrer un Message (OUTBOUND)
     return JSONResponse({"status": "ok", "detail": "message envoyé (stub)"})
 
 
@@ -94,10 +99,7 @@ async def send_whatsapp_message(
 @app.get("/contacts", response_class=HTMLResponse)
 def contacts_list(request: Request, session: Session = Depends(get_session)):
     rows = session.exec(select(Contact).order_by(Contact.created_at.desc())).all()
-    return templates.TemplateResponse(
-        "contacts.html",
-        {"request": request, "contacts": rows},
-    )
+    return templates.TemplateResponse("contacts.html", {"request": request, "contacts": rows})
 
 
 @app.get("/contacts/new", response_class=HTMLResponse)
@@ -106,7 +108,6 @@ def contacts_new_form(request: Request):
         "contact_form.html",
         {
             "request": request,
-            "contact": None,
             "contact_types": [
                 ContactType.CLIENT,
                 ContactType.PROSPECT,
@@ -141,16 +142,13 @@ def contacts_create(
     session.commit()
     session.refresh(c)
 
-    # Option: créer une affaire initiale associée
     d = Deal(title="Nouvelle affaire", contact_id=c.id, status=DealStatus.NEW)
     session.add(d)
     session.commit()
-
-    # UX: on revient à la liste des contacts
     return RedirectResponse(url="/contacts", status_code=303)
 
 
-# ====== Deals: création rapide (si besoin) ======
+# ====== Deals: création rapide ======
 @app.post("/deals/new")
 def deals_create(
     session: Session = Depends(get_session),
@@ -163,29 +161,24 @@ def deals_create(
     if not contact:
         return JSONResponse({"error": "contact introuvable"}, status_code=404)
 
-    d = Deal(
-        title=(title.strip() or "Affaire"),
-        contact_id=contact_id,
-        status=status,
-        amount_estimated=amount_estimated,
-    )
+    d = Deal(title=(title.strip() or "Affaire"), contact_id=contact_id, status=status, amount_estimated=amount_estimated)
     session.add(d)
     session.commit()
     session.refresh(d)
     return JSONResponse({"ok": True, "deal_id": d.id})
 
 
-# ====== Seed de démo (à retirer en prod) ======
+# ====== Seed de démo ======
 @app.post("/dev/seed")
 def dev_seed(session: Session = Depends(get_session)):
     if session.exec(select(Contact).limit(1)).first():
-        return {"ok": True, "detail": "Déjà des données, seed ignoré."}
+        return {"ok": True, "detail": "Déjà des données."}
     c1 = Contact(type=ContactType.CLIENT, name="Mme Dupont", phone="+966555555501", tags="Urgent,Nouveau")
     c2 = Contact(type=ContactType.PROSPECT, name="M. Leroy", phone="+966555555502", tags="Urgent")
     c3 = Contact(type=ContactType.CLIENT, name="Mme Ben Ali", phone="+966555555503", tags="Rappel,Chauffage")
-    session.add(c1); session.add(c2); session.add(c3); session.commit()
+    session.add_all([c1, c2, c3]); session.commit()
     d1 = Deal(title="Couleur + brushing samedi ?", contact_id=c1.id, status=DealStatus.NEW, amount_estimated=80, last_message_preview="Bonjour, dispo samedi ?", last_message_channel="WhatsApp")
     d2 = Deal(title="Urgence plomberie – fuite cuisine", contact_id=c2.id, status=DealStatus.NEW)
     d3 = Deal(title="Entretien chaudière – rappel", contact_id=c3.id, status=DealStatus.QUOTE, amount_estimated=120)
-    session.add(d1); session.add(d2); session.add(d3); session.commit()
+    session.add_all([d1, d2, d3]); session.commit()
     return {"ok": True, "contacts": 3, "deals": 3}
