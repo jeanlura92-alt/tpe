@@ -1,167 +1,118 @@
 import os
+from contextlib import contextmanager
+
 from sqlmodel import SQLModel, create_engine, Session
-from sqlalchemy import text
-from sqlalchemy.engine import Engine
+from sqlalchemy import text, inspect
 
+# --------- Utils ----------
+def _mask_url(url: str) -> str:
+    try:
+        if "://" not in url:
+            return url
+        scheme, rest = url.split("://", 1)
+        if "@" not in rest or ":" not in rest.split("@", 1)[0]:
+            return url
+        creds, hostpart = rest.split("@", 1)
+        user, _pwd = creds.split(":", 1)
+        return f"{scheme}://{user}:****@{hostpart}"
+    except Exception:
+        return url
 
-def _normalize_database_url(url: str) -> str:
-    """
-    Normalise l'URL DB.
-    - Si vide -> SQLite fichier local.
-    - Convertit postgres:// -> postgresql+psycopg:// pour SQLAlchemy 2.x
-    """
-    url = (url or "").strip()
-    if not url:
-        return "sqlite:///./app.db"
+# --------- DATABASE_URL ----------
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL manquant. Définis cette variable sur Render.")
 
-    if url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql+psycopg://", 1)
-    elif url.startswith("postgresql://") and "+psycopg" not in url:
-        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
-    return url
+# Normalisation pour Psycopg (compat Python 3.13 / SQLAlchemy 2.x)
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
 
+# Pooling raisonnable pour Render
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
+    max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "5")),
+    echo=os.getenv("SQL_ECHO", "0") == "1",
+)
 
-DATABASE_URL = _normalize_database_url(os.getenv("DATABASE_URL", ""))
-engine = create_engine(DATABASE_URL, echo=False, future=True)
-
-
-def get_session():
+@contextmanager
+def session_scope():
     with Session(engine) as session:
         yield session
 
+def get_session() -> Session:
+    return Session(engine)
 
-def _column_exists(engine: Engine, table: str, column: str) -> bool:
+# --------- Mini-migrations idempotentes ----------
+def _alter_table_add_columns_if_needed(table: str, column_defs: list[str]):
     """
-    Teste l'existence d'une colonne de manière portable.
+    column_defs: liste de fragments SQL 'ADD COLUMN IF NOT EXISTS ...'
     """
-    driver = engine.url.get_backend_name()
-    with engine.connect() as conn:
-        if driver.startswith("postgresql"):
-            sql = text("""
-                SELECT 1
-                FROM information_schema.columns
-                WHERE table_name = :t AND column_name = :c
-                LIMIT 1
-            """)
-            res = conn.execute(sql, {"t": table, "c": column}).first()
-            return bool(res)
-        else:
-            # SQLite
-            res = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
-            cols = {row[1] for row in res}  # row[1] = name
-            return column in cols
+    for frag in column_defs:
+        stmt = f'ALTER TABLE "{table}" {frag};'
+        with engine.begin() as conn:
+            conn.execute(text(stmt))
 
-
-def _add_column_if_missing(engine: Engine, table: str, column: str, ddl_sql_sqlite: str, ddl_sql_pg: str):
+def _run_migrations():
     """
-    Ajoute une colonne si absente (SQLite/Postgres).
-    - ddl_sql_* doivent être des 'ALTER TABLE ... ADD COLUMN ...' complets.
+    Effectue des migrations très simples et sûres :
+      - s'assure que les tables existent
+      - ajoute des colonnes si elles sont manquantes
     """
-    if _column_exists(engine, table, column):
-        return
-    driver = engine.url.get_backend_name()
-    ddl = ddl_sql_pg if driver.startswith("postgresql") else ddl_sql_sqlite
-    with engine.begin() as conn:
-        conn.execute(text(ddl))
+    # 1) Création des tables déclarées dans les modèles
+    SQLModel.metadata.create_all(engine)
 
+    insp = inspect(engine)
+    tables = set(insp.get_table_names())
 
-def _run_light_migrations(engine: Engine):
-    """
-    Petites migrations idempotentes pour aligner le schéma existant.
-    """
-    # CONTACT.TYPE
-    _add_column_if_missing(
-        engine,
-        table="contact",
-        column="type",
-        ddl_sql_sqlite="ALTER TABLE contact ADD COLUMN type TEXT NOT NULL DEFAULT 'client';",
-        ddl_sql_pg="ALTER TABLE contact ADD COLUMN IF NOT EXISTS type VARCHAR NOT NULL DEFAULT 'client';",
-    )
-    # CONTACT.EMAIL
-    _add_column_if_missing(
-        engine,
-        table="contact",
-        column="email",
-        ddl_sql_sqlite="ALTER TABLE contact ADD COLUMN email TEXT;",
-        ddl_sql_pg="ALTER TABLE contact ADD COLUMN IF NOT EXISTS email VARCHAR;",
-    )
-    # CONTACT.COMPANY
-    _add_column_if_missing(
-        engine,
-        table="contact",
-        column="company",
-        ddl_sql_sqlite="ALTER TABLE contact ADD COLUMN company TEXT;",
-        ddl_sql_pg="ALTER TABLE contact ADD COLUMN IF NOT EXISTS company VARCHAR;",
-    )
-    # CONTACT.ADDRESS
-    _add_column_if_missing(
-        engine,
-        table="contact",
-        column="address",
-        ddl_sql_sqlite="ALTER TABLE contact ADD COLUMN address TEXT;",
-        ddl_sql_pg="ALTER TABLE contact ADD COLUMN IF NOT EXISTS address VARCHAR;",
-    )
-    # CONTACT.TAGS
-    _add_column_if_missing(
-        engine,
-        table="contact",
-        column="tags",
-        ddl_sql_sqlite="ALTER TABLE contact ADD COLUMN tags TEXT;",
-        ddl_sql_pg="ALTER TABLE contact ADD COLUMN IF NOT EXISTS tags VARCHAR;",
-    )
+    # 2) CONTACT: s'assurer que 'type' existe
+    if "contact" in tables:
+        cols = {c["name"] for c in insp.get_columns("contact")}
+        if "type" not in cols:
+            _alter_table_add_columns_if_needed("contact", [
+                'ADD COLUMN IF NOT EXISTS "type" TEXT DEFAULT \'client\''
+            ])
 
-    # DEAL.STATUS
-    _add_column_if_missing(
-        engine,
-        table="deal",
-        column="status",
-        ddl_sql_sqlite="ALTER TABLE deal ADD COLUMN status TEXT NOT NULL DEFAULT 'new';",
-        ddl_sql_pg="ALTER TABLE deal ADD COLUMN IF NOT EXISTS status VARCHAR NOT NULL DEFAULT 'new';",
-    )
-    # DEAL.AMOUNT_ESTIMATED
-    _add_column_if_missing(
-        engine,
-        table="deal",
-        column="amount_estimated",
-        ddl_sql_sqlite="ALTER TABLE deal ADD COLUMN amount_estimated REAL;",
-        ddl_sql_pg="ALTER TABLE deal ADD COLUMN IF NOT EXISTS amount_estimated DOUBLE PRECISION;",
-    )
-    # DEAL.LAST_MESSAGE_PREVIEW
-    _add_column_if_missing(
-        engine,
-        table="deal",
-        column="last_message_preview",
-        ddl_sql_sqlite="ALTER TABLE deal ADD COLUMN last_message_preview TEXT;",
-        ddl_sql_pg="ALTER TABLE deal ADD COLUMN IF NOT EXISTS last_message_preview TEXT;",
-    )
-    # DEAL.LAST_MESSAGE_CHANNEL
-    _add_column_if_missing(
-        engine,
-        table="deal",
-        column="last_message_channel",
-        ddl_sql_sqlite="ALTER TABLE deal ADD COLUMN last_message_channel TEXT;",
-        ddl_sql_pg="ALTER TABLE deal ADD COLUMN IF NOT EXISTS last_message_channel VARCHAR;",
-    )
-    # DEAL.LAST_MESSAGE_AT
-    _add_column_if_missing(
-        engine,
-        table="deal",
-        column="last_message_at",
-        ddl_sql_sqlite="ALTER TABLE deal ADD COLUMN last_message_at TIMESTAMP;",
-        ddl_sql_pg="ALTER TABLE deal ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP;",
-    )
+    # 3) DEAL: colonnes méta de messages
+    if "deal" in tables:
+        cols = {c["name"] for c in insp.get_columns("deal")}
+        adds = []
+        if "last_message_preview" not in cols:
+            adds.append('ADD COLUMN IF NOT EXISTS "last_message_preview" TEXT')
+        if "last_message_channel" not in cols:
+            adds.append('ADD COLUMN IF NOT EXISTS "last_message_channel" TEXT')
+        if "last_message_at" not in cols:
+            adds.append('ADD COLUMN IF NOT EXISTS "last_message_at" TIMESTAMPTZ')
+        if adds:
+            _alter_table_add_columns_if_needed("deal", adds)
 
-    # OPTIONNEL : s'assurer que type/status ont une valeur par défaut pour les anciennes lignes nulles
-    with engine.begin() as conn:
-        conn.execute(text("UPDATE contact SET type='client' WHERE type IS NULL;"))
-        conn.execute(text("UPDATE deal SET status='new' WHERE status IS NULL;"))
-
+    # 4) MESSAGE: table et colonnes (channel / direction / content / created_at)
+    if "message" not in tables:
+        # Si la table n'existe pas (nouvelle base), la créer via metadata
+        SQLModel.metadata.create_all(engine)
+    else:
+        cols = {c["name"] for c in insp.get_columns("message")}
+        adds = []
+        if "direction" not in cols:
+            adds.append('ADD COLUMN IF NOT EXISTS "direction" TEXT')
+        if "channel" not in cols:
+            adds.append('ADD COLUMN IF NOT EXISTS "channel" TEXT')
+        if "content" not in cols:
+            adds.append('ADD COLUMN IF NOT EXISTS "content" TEXT NOT NULL DEFAULT \'\'')
+        if "created_at" not in cols:
+            adds.append('ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW()')
+        if "deal_id" not in cols:
+            adds.append('ADD COLUMN IF NOT EXISTS "deal_id" INTEGER')
+        if adds:
+            _alter_table_add_columns_if_needed("message", adds)
 
 def create_db_and_tables():
-    """
-    1) Crée les tables manquantes
-    2) Applique les mini-migrations (ajouts de colonnes) si besoin
-    """
-    from . import models  # enregistre les modèles
-    SQLModel.metadata.create_all(engine)
-    _run_light_migrations(engine)
+    try:
+        _run_migrations()
+    except Exception as e:
+        # Log léger sans exposer le mot de passe
+        safe_url = _mask_url(DATABASE_URL)
+        print(f"[DB] Erreur migrations sur {safe_url}: {e}")
+        # On tente au minimum la création brute
+        SQLModel.metadata.create_all(engine)
