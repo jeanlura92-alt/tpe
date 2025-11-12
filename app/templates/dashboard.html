@@ -114,6 +114,8 @@
       </div>
       {% if selected %}
       <form method="post" action="/deals/{{ s_deal.id }}/status" style="display:flex; gap:6px; align-items:center;">
+        <!-- On renvoie vers la même page après MAJ -->
+        <input type="hidden" name="next" value="/?contact_id={{ s_contact.id }}{% if current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
         <select name="status" class="chat-input">
           {% for value,label in status_options %}
             <option value="{{ value }}" {% if s_deal.status == value %}selected{% endif %}>{{ label }}</option>
@@ -152,7 +154,7 @@
         </a>
         {% else %}
         <div style="font-size:12px;color:var(--text-soft);">Aucun contact.</div>
-        {% endfor %}
+        {% endif %}
       </aside>
     </div>
   </section>
@@ -164,7 +166,6 @@
   function onDragStart(ev, dealId) {
     draggedDealId = dealId;
     ev.dataTransfer.setData("text/plain", String(dealId));
-    // petit effet visuel
     const el = ev.target.closest(".card");
     if (el) el.classList.add("ghost");
   }
@@ -174,20 +175,18 @@
     const data = ev.dataTransfer.getData("text/plain") || String(draggedDealId || "");
     if (!data) return;
 
-    // Call POST /deals/{id}/status pour maj le statut
     fetch(`/deals/${data}/status`, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+        "X-Requested-With": "XMLHttpRequest"
+      },
       body: new URLSearchParams({ status: newStatus })
     })
     .then(r => r.json())
-    .then(() => {
-      // Reload pour refléter le changement simplement
-      window.location.reload();
-    })
-    .catch(() => {
-      alert("Erreur lors du déplacement.");
-    })
+    .then(() => window.location.reload())
+    .catch(() => alert("Erreur lors du déplacement."))
     .finally(() => {
       draggedDealId = null;
       document.querySelectorAll(".card.ghost").forEach(el => el.classList.remove("ghost"));
