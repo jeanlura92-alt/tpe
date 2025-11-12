@@ -230,6 +230,7 @@
       color: var(--text-soft);
       transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
       white-space: nowrap;
+      text-decoration: none;
     }
 
     .btn:hover {
@@ -321,21 +322,18 @@
 
       <div class="sidebar-section-title">Navigation</div>
       <nav class="sidebar-nav">
-        <div class="sidebar-link active">
+        <a class="sidebar-link active" href="/">
           <span class="label">
             <span class="dot"></span>
             <span>Pipeline WhatsApp</span>
           </span>
-        </div>
-        <div class="sidebar-link">
+        </a>
+        <a class="sidebar-link" href="/contacts">
           <span class="label"><span>Contacts</span></span>
-        </div>
-        <div class="sidebar-link">
-          <span class="label"><span>Calendrier</span></span>
-        </div>
-        <div class="sidebar-link">
-          <span class="label"><span>Statistiques</span></span>
-        </div>
+        </a>
+        <a class="sidebar-link" href="/contacts/new">
+          <span class="label"><span>+ Nouveau contact</span></span>
+        </a>
       </nav>
 
       <div class="sidebar-section-title">WhatsApp</div>
@@ -373,10 +371,10 @@
         <div class="topbar-actions">
           <div class="pill">
             <span class="pill-dot"></span>
-            Maquette interface (squelette FastAPI / SQLModel)
+            Maquette interface (FastAPI / SQLModel)
           </div>
-          <button class="btn">Vue Contacts</button>
-          <button class="btn btn-primary">+ Nouvelle affaire</button>
+          <a href="/contacts" class="btn">Vue Contacts</a>
+          <a href="/contacts/new" class="btn btn-primary">+ Nouveau contact</a>
         </div>
       </header>
 
