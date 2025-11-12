@@ -3,23 +3,38 @@
 
 {% block extra_head %}
 <style>
-  /* Styles principaux : pipeline et chat */
-  .panel-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
-  .panel-title-block { display: flex; flex-direction: column; gap: 4px; }
-  .panel-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-  .badge { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-strong); border: 1px solid #bfdbfe; }
-  .panel-subtitle { font-size: 12px; color: var(--text-soft); }
-  .panel-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .input, .select { border-radius: 999px; border: 1px solid var(--border); padding: 6px 10px; font-size: 12px; background: #ffffff; color: var(--text); min-width: 0; }
+  .panel-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;}
+  .panel-title{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;}
+  .badge{font-size:11px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-strong);border:1px solid #bfdbfe;}
+  .panel-subtitle{font-size:12px;color:var(--text-soft);}
 
-  .kanban { margin-top: 8px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; overflow-x: auto; }
-  .kanban-column { background: var(--bg-soft-2); border-radius: 10px; border: 1px solid var(--border); padding: 10px; display: flex; flex-direction: column; min-width: 220px; }
+  .kanban{margin-top:8px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;overflow-x:auto;}
+  .kanban-column{background:var(--bg-soft-2);border-radius:10px;border:1px solid var(--border);padding:10px;display:flex;flex-direction:column;min-width:220px;}
+  .card{border-radius:10px;border:1px solid var(--border);padding:8px;background:#fff;transition:.15s;cursor:pointer;}
+  .card:hover{border-color:var(--accent-soft);box-shadow:0 1px 4px rgba(15,23,42,.08);}
+  .card.active{border-color:var(--accent);background:#eff6ff;}
 
-  .card { border-radius: 10px; border: 1px solid var(--border); padding: 8px; background: #ffffff; transition: 0.15s; cursor: pointer; }
-  .card:hover { border-color: var(--accent-soft); box-shadow: 0 1px 4px rgba(15,23,42,0.08); }
-  .card.active { border-color: var(--accent); background: #eff6ff; }
+  .chat-header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;}
+  .chat-contact{display:flex;align-items:center;gap:10px;}
+  .avatar{width:32px;height:32px;border-radius:999px;background:var(--accent-soft);display:inline-flex;align-items:center;justify-content:center;font-weight:600;color:var(--accent-strong);}
+  .chip{border-radius:999px;padding:3px 9px;font-size:11px;border:1px solid var(--border);background:var(--bg-soft-2);color:var(--text-soft);}
+  .chat-body{margin-top:6px;display:flex;gap:10px;}
+  .chat-pane{flex:1;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--bg-soft-2);}
+  .chat-input-wrapper{margin-top:8px;display:flex;flex-direction:column;gap:6px;}
+  .chat-input-row{display:flex;gap:6px;}
+  .chat-input{flex:1;border-radius:999px;border:1px solid var(--border);padding:8px 12px;font-size:13px;background:#fff;color:var(--text);}
 
-  .sidepanel-item.active { border-color: var(--accent); background: var(--accent-soft); }
+  .contacts-panel{width:240px;border:1px solid var(--border);border-radius:10px;padding:8px;background:#fff;}
+  .contacts-title{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-soft);margin-bottom:6px;}
+  .sidepanel-item{border-radius:8px;border:1px solid var(--border);padding:6px 7px;font-size:11px;color:var(--text-soft);background:#fff;display:flex;flex-direction:column;gap:2px;margin-bottom:6px;}
+  .sidepanel-item.active{border-color:var(--accent);background:var(--accent-soft);}
+  .sidepanel-tag{font-size:10px;padding:1px 6px;border-radius:999px;border:1px solid var(--border);align-self:flex-start;background:var(--bg-soft-2);}
+
+  @media(max-width:960px){
+    .main-content{grid-template-columns:minmax(0,1fr)}
+    .chat-body{flex-direction:column}
+    .contacts-panel{width:100%}
+  }
 </style>
 {% endblock %}
 
@@ -28,9 +43,9 @@
   <!-- PIPELINE -->
   <section class="panel">
     <div class="panel-header">
-      <div class="panel-title-block">
-        <div class="panel-title">Pipeline WhatsApp <span class="badge">Artisans</span></div>
-        <div class="panel-subtitle">Demandes clients et fournisseurs classées par étape.</div>
+      <div>
+        <div class="panel-title">Pipeline WhatsApp <span class="badge">Artisans & TPE</span></div>
+        <div class="panel-subtitle">Demandes classées par étape.</div>
       </div>
     </div>
 
@@ -38,15 +53,19 @@
       {% for col in columns %}
       {% set deals = deals_by_status.get(col.id, []) %}
       <div class="kanban-column">
-        <div class="kanban-column-title">{{ col.label }} ({{ deals|length }})</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:6px;">
+          {{ col.label }} ({{ deals|length }})
+        </div>
         {% for item in deals %}
         {% set deal = item.deal %}
         {% set contact = item.contact %}
         <a href="/?contact_id={{ contact.id }}" style="text-decoration:none;">
           <div class="card {% if selected and selected.contact.id == contact.id %}active{% endif %}">
-            <div class="card-title" style="font-weight:500;">{{ contact.name }}</div>
-            <div style="font-size:12px;color:var(--text-soft);">{{ deal.title }}</div>
-            <div style="font-size:11px;color:var(--accent-strong);">{{ deal.amount_estimated or "—" }} €</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div style="font-weight:500;">{{ contact.name }}</div>
+              <div class="chip">{{ deal.amount_estimated if deal.amount_estimated is not none else "—" }} €</div>
+            </div>
+            <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">{{ deal.title }}</div>
           </div>
         </a>
         {% else %}
@@ -57,7 +76,7 @@
     </div>
   </section>
 
-  <!-- CHAT PANEL -->
+  <!-- CHAT + CONTACTS -->
   <section class="panel">
     {% if selected %}
       {% set s_deal = selected.deal %}
@@ -66,48 +85,56 @@
 
     <header class="chat-header">
       <div class="chat-contact">
-        <div class="avatar">{{ s_contact.name[0] | upper if selected else '?' }}</div>
+        <div class="avatar">{{ s_contact.name[0]|upper if selected else '?' }}</div>
         <div>
           <div style="font-weight:600;">{{ s_contact.name if selected else "Aucun contact sélectionné" }}</div>
-          <div style="font-size:12px;color:var(--text-soft);">{{ s_contact.phone if selected else "Sélectionnez un contact à gauche" }}</div>
+          <div style="font-size:12px;color:var(--text-soft);">
+            {{ s_contact.phone if selected else "Sélectionnez un contact à gauche" }}
+          </div>
         </div>
       </div>
+      {% if selected %}
+      <form method="post" action="/deals/{{ s_deal.id }}/status" style="display:flex; gap:6px; align-items:center;">
+        <select name="status" class="chat-input">
+          {% for value,label in status_options %}
+            <option value="{{ value }}" {% if s_deal.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn">Mettre à jour</button>
+      </form>
+      {% endif %}
     </header>
 
     <div class="chat-body">
-      <div style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:#fafafa;">
+      <div class="chat-pane">
         {% if selected %}
-          <div style="font-size:13px;color:var(--text);margin-bottom:8px;">Chat avec {{ s_contact.name }}</div>
+          <div style="font-size:13px;margin-bottom:8px;">Conversation avec <strong>{{ s_contact.name }}</strong></div>
           <div style="font-size:12px;color:var(--text-soft);">Dernier message : {{ s_deal.last_message_preview or "—" }}</div>
+          <form method="post" action="/deals/{{ s_deal.id }}/send_message" class="chat-input-wrapper">
+            <div class="chat-input-row">
+              <input name="content" class="chat-input" placeholder="Envoyer un message WhatsApp…">
+              <button class="btn btn-primary">Envoyer</button>
+            </div>
+          </form>
         {% else %}
           <div style="font-size:12px;color:var(--text-soft);">Clique sur un contact pour afficher la conversation.</div>
         {% endif %}
       </div>
-    </div>
 
-    <div class="chat-input-wrapper" style="margin-top:10px;">
-      <form method="post" action="/deals/{{ s_deal.id if selected else 0 }}/send_message">
-        <input name="content" class="chat-input" placeholder="Envoyer un message WhatsApp..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:999px;" />
-        <div style="margin-top:6px;text-align:right;">
-          <button class="btn btn-primary">Envoyer</button>
-        </div>
-      </form>
-    </div>
-
-    <!-- LISTE TOUS LES CONTACTS -->
-    <div class="chat-sidepanel" style="margin-top:14px;">
-      <div class="sidepanel-title" style="font-size:12px;text-transform:uppercase;color:var(--text-soft);margin-bottom:4px;">Tous les contacts</div>
-      {% for c in contacts_list %}
-      <a href="/?contact_id={{ c.id }}" style="text-decoration:none;">
-        <div class="sidepanel-item {% if selected and selected.contact.id == c.id %}active{% endif %}">
-          <strong>{{ c.name }}</strong><br>
-          <span style="font-size:11px;color:var(--text-soft);">{{ c.phone }}</span><br>
-          <span class="sidepanel-tag" style="font-size:10px;">{{ c.type|capitalize }}</span>
-        </div>
-      </a>
-      {% else %}
-      <div style="font-size:12px;color:var(--text-soft);">Aucun contact encore.</div>
-      {% endfor %}
+      <aside class="contacts-panel">
+        <div class="contacts-title">Tous les contacts</div>
+        {% for c in contacts_list %}
+        <a href="/?contact_id={{ c.id }}" style="text-decoration:none;">
+          <div class="sidepanel-item {% if selected and selected.contact.id == c.id %}active{% endif %}">
+            <strong>{{ c.name }}</strong>
+            <span style="font-size:11px;color:var(--text-soft);">{{ c.phone }}</span>
+            <span class="sidepanel-tag" style="text-transform:capitalize;">{{ c.type }}</span>
+          </div>
+        </a>
+        {% else %}
+        <div style="font-size:12px;color:var(--text-soft);">Aucun contact.</div>
+        {% endfor %}
+      </aside>
     </div>
   </section>
 </main>
