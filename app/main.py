@@ -60,12 +60,13 @@ def _get_pipeline_columns(profile: Optional[str]) -> List[Dict[str, str]]:
     ]
 
 
+# ====== UI: Dashboard / Kanban ======
 @app.get("/", response_class=HTMLResponse)
 def dashboard(
     request: Request,
     session: Session = Depends(get_session),
     contact_id: int | None = None,
-    profile: str | None = None,
+    profile: str | None = None,  # client / prospect / fournisseur / autre
 ):
     profile = profile if profile in {ContactType.CLIENT, ContactType.PROSPECT, ContactType.FOURNISSEUR, ContactType.AUTRE} else None
     columns = _get_pipeline_columns(profile)
@@ -114,6 +115,7 @@ def dashboard(
     )
 
 
+# ====== Webhook / WhatsApp (stubs) ======
 @app.post("/webhook/whatsapp")
 async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session)):
     return JSONResponse({"status": "ok", "detail": "webhook stub"})
@@ -142,10 +144,17 @@ async def send_whatsapp_message(
 
 @app.post("/deals/{deal_id}/status")
 def update_deal_status(
+    request: Request,
     deal_id: int,
     status: str = Form(...),
+    next: Optional[str] = Form(None),
     session: Session = Depends(get_session),
 ):
+    """
+    Supporte 2 modes :
+    - Requête JS (fetch) -> renvoie JSON
+    - Formulaire HTML -> redirige (303) vers next ou vers /?contact_id=...
+    """
     if status not in {DealStatus.NEW, DealStatus.QUOTE, DealStatus.SCHEDULED, DealStatus.CLOSED}:
         return JSONResponse({"error": "statut invalide"}, status_code=400)
 
@@ -156,9 +165,20 @@ def update_deal_status(
     deal.status = status
     session.add(deal)
     session.commit()
-    return JSONResponse({"ok": True, "deal_id": deal.id, "new_status": status})
+
+    # Mode AJAX ?
+    accept = (request.headers.get("accept") or "").lower()
+    is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in accept
+
+    if is_ajax:
+        return JSONResponse({"ok": True, "deal_id": deal.id, "new_status": status})
+
+    # Mode formulaire → redirect
+    redirect_url = next or f"/?contact_id={deal.contact_id}"
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
+# ====== Contacts ======
 @app.get("/contacts", response_class=HTMLResponse)
 def contacts_list_view(request: Request, session: Session = Depends(get_session)):
     rows = session.exec(select(Contact).order_by(Contact.created_at.desc())).all()
