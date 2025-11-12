@@ -1,195 +1,197 @@
-<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8" />
-  <title>CRM WhatsApp Artisans</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root { --bg:#f7f7fb; --card:#fff; --muted:#6b7280; --text:#111827; --line:#e5e7eb; --brand:#0f172a; }
-    html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial; }
-    a { color:inherit; text-decoration:none; }
-    .layout { display:grid; grid-template-columns: 240px 1fr 420px; gap:16px; padding:16px; }
-    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; }
-    .sidebar { padding:12px; position:sticky; top:16px; height: calc(100vh - 32px); overflow:auto; }
-    .sidebar h3 { margin:6px 0 12px; font-size:14px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
-    .sidebar-nav a { display:block; padding:10px 12px; border-radius:10px; margin-bottom:6px; border:1px solid transparent; }
-    .sidebar-nav a.active { background:#eef2ff; border-color:#e0e7ff; }
-    .sidebar .filter { margin-top:14px; }
-    .btn { display:inline-block; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#fff; cursor:pointer; }
-    .btn-ghost { background:#fff; border:1px dashed var(--line); }
-    .btn-primary { background:var(--brand); color:#fff; border-color:var(--brand); }
-    .kanban { display:grid; grid-template-columns: repeat(4, minmax(220px,1fr)); gap:12px; }
-    .col { padding:8px; }
-    .col h4 { margin:6px 6px 10px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
-    .deal { padding:10px; border:1px solid var(--line); border-radius:10px; margin:8px 0; background:#fff; }
-    .deal .name { font-weight:600; }
-    .deal .meta { color:var(--muted); font-size:12px; margin-top:4px; }
-    .right { padding:0; display:flex; flex-direction:column; height: calc(100vh - 32px); position:sticky; top:16px; }
-    .right-header { padding:12px 14px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
-    .right-body { display:grid; grid-template-columns: 240px 1fr; height:100%; }
-    .contacts { border-right:1px solid var(--line); overflow:auto; }
-    .contacts details { border-bottom:1px solid var(--line); }
-    .contacts summary { cursor:pointer; padding:10px 12px; font-weight:600; }
-    .contacts .group { padding:8px 12px; }
-    .contacts .c { padding:8px 10px; border-radius:8px; display:flex; align-items:center; justify-content:space-between; border:1px solid transparent; }
-    .contacts .c.active { background:#eef2ff; border-color:#e0e7ff; }
-    .thread { display:flex; flex-direction:column; height:100%; }
-    .messages { padding:12px 14px; overflow:auto; flex:1; background:#fafafa; border-bottom:1px solid var(--line); }
-    .msg-divider { text-align:center; color:var(--muted); font-size:12px; margin:8px 0; }
-    .msg { display:flex; margin:6px 0; }
-    .msg.in { justify-content:flex-start; }
-    .msg.out { justify-content:flex-end; }
-    .bubble { max-width:70%; border:1px solid var(--line); background:#fff; padding:10px 12px; border-radius:12px; position:relative; }
-    .msg.out .bubble { background:#f1f5ff; }
-    .bubble .meta { display:block; color:var(--muted); font-size:11px; margin-top:6px; text-align:right; }
-    .composer { padding:12px; display:flex; gap:8px; }
-    .composer textarea { flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--line); resize:vertical; min-height:44px; }
-    .toolbar { padding:8px 12px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:8px; }
-    .status-form select { padding:8px 10px; border-radius:8px; border:1px solid var(--line); }
-    .muted { color:var(--muted); }
-    .small { font-size:12px; }
-  </style>
-</head>
-<body>
-  <div class="layout">
-    <!-- Sidebar -->
-    <aside class="card sidebar">
-      <h3>Navigation</h3>
-      <nav class="sidebar-nav">
-        <a class="active" href="/"><span>Pipeline WhatsApp</span></a>
-        <a href="/contacts"><span>Contacts</span></a>
-        <a href="/contacts/new"><span>+ Nouveau contact</span></a>
-      </nav>
+{% extends "base.html" %}
+{% block title %}CRM WhatsApp Artisans - Pipeline{% endblock %}
 
-      <div class="filter">
-        <h3>Filtrer par profil</h3>
-        <div>
-          <a class="btn" href="/">Tous</a>
-          <a class="btn" href="/?profile=client">Clients</a>
-          <a class="btn" href="/?profile=prospect">Prospects</a>
-          <a class="btn" href="/?profile=fournisseur">Fournisseurs</a>
-          <a class="btn" href="/?profile=autre">Autres</a>
-        </div>
+{% block extra_head %}
+<style>
+  .panel-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;}
+  .panel-title{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;}
+  .badge{font-size:11px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-strong);border:1px solid #bfdbfe;}
+  .panel-subtitle{font-size:12px;color:var(--text-soft);}
+  .filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+  .kanban{margin-top:8px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;overflow-x:auto;}
+  .kanban-column{background:var(--bg-soft-2);border-radius:10px;border:1px solid var(--border);padding:10px;display:flex;flex-direction:column;min-width:220px;}
+  .kanban-title{font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:6px;}
+  .cards{display:flex;flex-direction:column;gap:8px;min-height:40px}
+  .card{border-radius:10px;border:1px solid var(--border);padding:8px;background:#fff;transition:.15s;cursor:grab}
+  .card:active{cursor:grabbing}
+  .card:hover{border-color:var(--accent-soft);box-shadow:0 1px 4px rgba(15,23,42,.08);}
+  .card.active{border-color:var(--accent);background:#eff6ff;}
+  .ghost{opacity:.4}
+
+  .chat-header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;}
+  .chat-contact{display:flex;align-items:center;gap:10px;}
+  .avatar{width:32px;height:32px;border-radius:999px;background:var(--accent-soft);display:inline-flex;align-items:center;justify-content:center;font-weight:600;color:var(--accent-strong);}
+  .chat-body{margin-top:6px;display:flex;gap:10px;}
+  .chat-pane{flex:1;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--bg-soft-2);}
+  .chat-input-wrapper{margin-top:8px;display:flex;flex-direction:column;gap:6px;}
+  .chat-input-row{display:flex;gap:6px;}
+  .chat-input{flex:1;border-radius:999px;border:1px solid var(--border);padding:8px 12px;font-size:13px;background:#fff;color:var(--text);}
+  .btn{border-radius:999px;border:1px solid var(--border);padding:6px 14px;font-size:13px;background:#fff;color:var(--text-soft);cursor:pointer}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  .contacts-panel{width:240px;border:1px solid var(--border);border-radius:10px;padding:8px;background:#fff;}
+  .contacts-title{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-soft);margin-bottom:6px;}
+  .sidepanel-item{border-radius:8px;border:1px solid var(--border);padding:6px 7px;font-size:11px;color:var(--text-soft);background:#fff;display:flex;flex-direction:column;gap:2px;margin-bottom:6px;}
+  .sidepanel-item.active{border-color:var(--accent);background:var(--accent-soft);}
+  .sidepanel-tag{font-size:10px;padding:1px 6px;border-radius:999px;border:1px solid var(--border);align-self:flex-start;background:var(--bg-soft-2);}
+
+  @media(max-width:960px){
+    .main-content{grid-template-columns:minmax(0,1fr)}
+    .chat-body{flex-direction:column}
+    .contacts-panel{width:100%}
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="main-content">
+  <!-- PIPELINE -->
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">Pipeline WhatsApp <span class="badge">Artisans & TPE</span></div>
+        <div class="panel-subtitle">Demandes classées par étape. Vue : {{ current_profile|capitalize }}</div>
       </div>
-    </aside>
+      <form class="filters" method="get" action="/">
+        <label style="font-size:12px;color:var(--text-soft)">Profil :</label>
+        <select name="profile" class="chat-input" onchange="this.form.submit()">
+          <option value="" {% if current_profile=='tous' %}selected{% endif %}>Tous</option>
+          <option value="client" {% if current_profile=='client' %}selected{% endif %}>Clients</option>
+          <option value="prospect" {% if current_profile=='prospect' %}selected{% endif %}>Prospects</option>
+          <option value="fournisseur" {% if current_profile=='fournisseur' %}selected{% endif %}>Fournisseurs</option>
+          <option value="autre" {% if current_profile=='autre' %}selected{% endif %}>Autres</option>
+        </select>
+      </form>
+    </div>
 
-    <!-- Kanban -->
-    <section class="kanban">
+    <div class="kanban" id="kanban">
       {% for col in columns %}
-      <div class="card col">
-        <h4>{{ col.label }}</h4>
-        {% for item in deals_by_status[col.id] %}
-          <div class="deal">
-            <div class="name">{{ item.contact.name }}</div>
-            <div class="meta small muted">
-              {{ item.contact.phone }} • {{ item.deal.last_message_channel or '—' }} •
-              {{ item.deal.last_message_at.astimezone().strftime('%d/%m %H:%M') if item.deal.last_message_at else '—' }}
-            </div>
-            <div style="margin-top:8px;">
-              <a class="btn" href="/?contact_id={{ item.contact.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">Ouvrir</a>
-            </div>
-          </div>
-        {% else %}
-          <div class="muted small" style="padding:6px 8px;">Aucune affaire</div>
-        {% endfor %}
-      </div>
-      {% endfor %}
-    </section>
-
-    <!-- Right panel -->
-    <aside class="card right">
-      <div class="right-header">
-        {% if selected %}
-          <div style="font-weight:700">{{ selected.contact.name }}</div>
-          <div class="muted">•</div>
-          <div class="muted small">{{ selected.contact.phone }}</div>
-        {% else %}
-          <div class="muted">Sélectionnez un contact</div>
-        {% endif %}
-      </div>
-
-      <div class="toolbar">
-        {% if selected %}
-        <form class="status-form" method="post" action="/deals/{{ selected.deal.id }}/status">
-          <input type="hidden" name="next" value="/?contact_id={{ selected.contact.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
-          <select name="status" onchange="this.form.submit()">
-            {% for val, label in status_options %}
-              <option value="{{ val }}" {% if selected.deal.status==val %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </form>
-        {% endif %}
-        <div class="muted small">Profil : <strong>{{ current_profile }}</strong></div>
-      </div>
-
-      <div class="right-body">
-        <!-- Liste contacts (repliée par groupes simples) -->
-        <div class="contacts">
-          <details open>
-            <summary>Contacts ({{ contacts_list|length }})</summary>
-            <div class="group">
-              {% for c in contacts_list %}
-                <a class="c {% if selected and selected.contact.id==c.id %}active{% endif %}"
-                   href="/?contact_id={{ c.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
-                  <span>{{ c.name }}</span>
-                  <span class="muted small">{{ c.type }}</span>
-                </a>
-              {% endfor %}
-            </div>
-          </details>
-        </div>
-
-        <!-- Fil de messages -->
-        <div class="thread">
-          <div class="messages">
-            {% if messages_next_cursor %}
-              <form method="get" style="margin-bottom:8px;">
-                <input type="hidden" name="contact_id" value="{{ selected.contact.id if selected }}">
-                <input type="hidden" name="msgs_before" value="{{ messages_next_cursor }}">
-                <input type="hidden" name="msgs_limit" value="{{ messages_limit }}">
-                {% if current_profile and current_profile != 'tous' %}
-                  <input type="hidden" name="profile" value="{{ current_profile }}">
-                {% endif %}
-                <button class="btn btn-ghost" style="width:100%;">Afficher plus d’historique</button>
-              </form>
-            {% endif %}
-
-            {% if messages %}
-              {% set last_day = None %}
-              {% for m in messages %}
-                {% set day = (m.sent_at or m.created_at).astimezone().strftime('%Y-%m-%d') %}
-                {% if day != last_day %}
-                  <div class="msg-divider">
-                    {{ (m.sent_at or m.created_at).astimezone().strftime('%d %b %Y') }}
-                  </div>
-                  {% set last_day = day %}
-                {% endif %}
-                <div class="msg {{ 'out' if m.direction=='out' else 'in' }}">
-                  <div class="bubble">
-                    {{ m.content | e }}
-                    <span class="meta">{{ (m.sent_at or m.created_at).astimezone().strftime('%H:%M') }}</span>
+      {% set deals = deals_by_status.get(col.id, []) %}
+      <div class="kanban-column" data-status="{{ col.id }}">
+        <div class="kanban-title">{{ col.label }} ({{ deals|length }})</div>
+        <div class="cards" ondragover="event.preventDefault();" ondrop="onDrop(event, '{{ col.id }}')">
+          {% for item in deals %}
+            {% set deal = item.deal %}
+            {% set contact = item.contact %}
+            <a href="/?contact_id={{ contact.id }}{% if current_profile!='tous' %}&profile={{ current_profile }}{% endif %}" style="text-decoration:none;">
+              <div class="card {% if selected and selected.contact.id == contact.id %}active{% endif %}"
+                   draggable="true"
+                   ondragstart="onDragStart(event, {{ deal.id }})"
+                   data-deal="{{ deal.id }}">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <div style="font-weight:500;">{{ contact.name }}</div>
+                  <div style="font-size:11px;color:var(--text-soft);">
+                    {{ deal.amount_estimated if deal.amount_estimated is not none else "—" }} €
                   </div>
                 </div>
-              {% endfor %}
-            {% else %}
-              <div class="muted small">Aucun message à afficher.</div>
-            {% endif %}
-          </div>
+                <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">{{ deal.title }}</div>
+              </div>
+            </a>
+          {% else %}
+            <div style="font-size:12px;color:var(--text-soft);">–</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
 
-          <!-- Composer -->
-          <div class="composer">
-            {% if selected %}
-            <form method="post" action="/deals/{{ selected.deal.id }}/send_message" style="display:flex; gap:8px; width:100%;">
-              <textarea name="content" placeholder="Écrire un message WhatsApp…"></textarea>
-              <button class="btn btn-primary" type="submit">Envoyer</button>
-            </form>
-            {% else %}
-              <div class="muted">Sélectionnez un contact pour écrire.</div>
-            {% endif %}
+  <!-- CHAT + CONTACTS -->
+  <section class="panel">
+    {% if selected %}
+      {% set s_deal = selected.deal %}
+      {% set s_contact = selected.contact %}
+    {% endif %}
+
+    <header class="chat-header">
+      <div class="chat-contact">
+        <div class="avatar">{{ s_contact.name[0]|upper if selected else '?' }}</div>
+        <div>
+          <div style="font-weight:600;">{{ s_contact.name if selected else "Aucun contact sélectionné" }}</div>
+          <div style="font-size:12px;color:var(--text-soft);">
+            {{ s_contact.phone if selected else "Sélectionnez un contact à gauche" }}
           </div>
         </div>
       </div>
-    </aside>
-  </div>
-</body>
-</html>
+      {% if selected %}
+      <form method="post" action="/deals/{{ s_deal.id }}/status" style="display:flex; gap:6px; align-items:center;">
+        <input type="hidden" name="next" value="/?contact_id={{ s_contact.id }}{% if current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
+        <select name="status" class="chat-input">
+          {% for value,label in status_options %}
+            <option value="{{ value }}" {% if s_deal.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn">Mettre à jour</button>
+      </form>
+      {% endif %}
+    </header>
+
+    <div class="chat-body">
+      <div class="chat-pane">
+        {% if selected %}
+          <div style="font-size:13px;margin-bottom:8px;">Conversation avec <strong>{{ s_contact.name }}</strong></div>
+          <div style="font-size:12px;color:var(--text-soft);">Dernier message : {{ s_deal.last_message_preview or "—" }}</div>
+          <form method="post" action="/deals/{{ s_deal.id }}/send_message" class="chat-input-wrapper">
+            <div class="chat-input-row">
+              <input name="content" class="chat-input" placeholder="Envoyer un message WhatsApp…">
+              <button class="btn btn-primary">Envoyer</button>
+            </div>
+          </form>
+        {% else %}
+          <div style="font-size:12px;color:var(--text-soft);">Clique sur un contact pour afficher la conversation.</div>
+        {% endif %}
+      </div>
+
+      <aside class="contacts-panel">
+        <div class="contacts-title">Tous les contacts</div>
+        {% for c in contacts_list %}
+          <a href="/?contact_id={{ c.id }}{% if current_profile!='tous' %}&profile={{ current_profile }}{% endif %}" style="text-decoration:none;">
+            <div class="sidepanel-item {% if selected and selected.contact.id == c.id %}active{% endif %}">
+              <strong>{{ c.name }}</strong>
+              <span style="font-size:11px;color:var(--text-soft);">{{ c.phone }}</span>
+              <span class="sidepanel-tag" style="text-transform:capitalize;">{{ c.type }}</span>
+            </div>
+          </a>
+        {% else %}
+          <div style="font-size:12px;color:var(--text-soft);">Aucun contact.</div>
+        {% endfor %}
+      </aside>
+    </div>
+  </section>
+</main>
+
+<script>
+  let draggedDealId = null;
+
+  function onDragStart(ev, dealId) {
+    draggedDealId = dealId;
+    ev.dataTransfer.setData("text/plain", String(dealId));
+    const el = ev.target.closest(".card");
+    if (el) el.classList.add("ghost");
+  }
+
+  function onDrop(ev, newStatus) {
+    ev.preventDefault();
+    const data = ev.dataTransfer.getData("text/plain") || String(draggedDealId || "");
+    if (!data) return;
+
+    fetch(`/deals/${data}/status`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: new URLSearchParams({ status: newStatus })
+    })
+    .then(r => r.json())
+    .then(() => window.location.reload())
+    .catch(() => alert("Erreur lors du déplacement."))
+    .finally(() => {
+      draggedDealId = null;
+      document.querySelectorAll(".card.ghost").forEach(el => el.classList.remove("ghost"));
+    });
+  }
+</script>
+{% endblock %}
