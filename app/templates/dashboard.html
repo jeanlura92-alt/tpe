@@ -6,100 +6,143 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{
-      /* Palette identique à l’onglet Contacts */
-      --bg:#0b1220;
-      --panel:#0f172a;
-      --sidebar-grad1:#4f46e5; /* indigo */
-      --sidebar-grad2:#06b6d4; /* cyan */
-      --card:#0b1324;
-      --line:#1f2a44;
-      --text:#e5e7eb;
-      --muted:#94a3b8;
-      --brand:#60a5fa;
+      /* Thème clair (aligné avec Contacts) */
+      --bg:#f7f7fb;
+      --panel:#ffffff;
+      --sidebar:#ffffff;
+      --line:#e5e7eb;
+      --text:#0f172a;
+      --muted:#6b7280;
+      --brand:#2563eb;      /* bleu pro */
+      --brand-weak:#e8f0ff; /* fond boutons/chips */
+      --card:#ffffff;
 
-      --badge-new:#22c55e;
-      --badge-quote:#f59e0b;
-      --badge-sched:#3b82f6;
-      --badge-closed:#a855f7;
+      --badge-new:#16a34a;     /* vert */
+      --badge-quote:#d97706;   /* orange */
+      --badge-sched:#2563eb;   /* bleu */
+      --badge-closed:#7c3aed;  /* violet */
 
-      --bubble-in:#0f172a;
-      --bubble-out:#1e293b;
+      --bubble-in:#ffffff;
+      --bubble-out:#eef2ff;
     }
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial}
     a{color:inherit;text-decoration:none}
 
-    /* Layout 3 colonnes : sidebar / kanban / conversation */
-    .app{display:grid;grid-template-columns:260px 1fr 520px;min-height:100vh}
+    /* Layout responsive: sidebar / kanban / conversation */
+    .app{
+      display:grid;
+      grid-template-columns:260px 1fr 520px;
+      min-height:100vh;
+    }
 
-    /* Sidebar identique à Contacts */
+    /* Header mobile (affiché < 992px) */
+    .topbar{
+      display:none;
+      position:sticky; top:0; z-index:20;
+      background:var(--panel); border-bottom:1px solid var(--line);
+      padding:10px 12px; align-items:center; justify-content:space-between;
+    }
+    .topbar .title{font-weight:700}
+    .topbar .btn{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}
+
+    /* Sidebar claire */
     .sidebar{
-      background:linear-gradient(180deg,var(--sidebar-grad1) 0%,var(--sidebar-grad2) 100%);
-      color:#fff; padding:18px 14px; position:sticky; top:0; height:100vh; overflow:auto
+      background:var(--sidebar); color:var(--text);
+      padding:18px 14px; position:sticky; top:0; height:100vh; overflow:auto;
+      border-right:1px solid var(--line);
     }
     .brand{display:flex;align-items:center;gap:10px;margin-bottom:18px;font-weight:800;letter-spacing:.2px}
-    .brand .dot{width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.25)}
-    .side-title{opacity:.9;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px}
+    .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+    .side-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px}
     .nav a{
       display:flex;align-items:center;gap:8px;
       padding:10px 12px;border-radius:10px;margin-bottom:6px;
-      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12)
+      background:#fff; border:1px solid var(--line);
     }
-    .nav a.active{background:rgba(255,255,255,.18)}
+    .nav a.active{background:var(--brand-weak); border-color:#cfe0ff}
     .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-    .chips a{padding:6px 10px;border:1px solid rgba(255,255,255,.18);border-radius:999px;background:rgba(255,255,255,.08)}
+    .chips a{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:#fff}
+    .chips a.active{background:var(--brand-weak); border-color:#cfe0ff}
 
     /* Kanban (zone centrale) */
-    .center{padding:18px;border-right:1px solid var(--line)}
+    .center{padding:18px;border-right:1px solid var(--line); background:var(--bg)}
     .kanban{display:grid;gap:14px;grid-template-columns:repeat(4,minmax(240px,1fr))}
     .col{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
     .col-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);font-weight:700}
     .badge{font-size:11px;padding:4px 8px;border-radius:999px;opacity:.95;border:1px solid transparent}
-    .b-new{color:var(--badge-new);background:rgba(34,197,94,.15);border-color:rgba(34,197,94,.25)}
-    .b-quote{color:var(--badge-quote);background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.25)}
-    .b-sched{color:var(--badge-sched);background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.25)}
-    .b-closed{color:var(--badge-closed);background:rgba(168,85,247,.15);border-color:rgba(168,85,247,.25)}
+    .b-new{color:var(--badge-new);background:rgba(22,163,74,.10);border-color:rgba(22,163,74,.25)}
+    .b-quote{color:var(--badge-quote);background:rgba(217,119,6,.10);border-color:rgba(217,119,6,.25)}
+    .b-sched{color:var(--badge-sched);background:rgba(37,99,235,.10);border-color:rgba(37,99,235,.25)}
+    .b-closed{color:var(--badge-closed);background:rgba(124,58,237,.10);border-color:rgba(124,58,237,.25)}
     .card{margin:10px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
     .deal-name{font-weight:700}
     .deal-meta{color:var(--muted);font-size:12px;margin-top:4px}
-    .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);cursor:pointer;background:var(--card);color:var(--text)}
-    .btn-primary{background:var(--brand);border-color:var(--brand);color:#0b1220}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);cursor:pointer;background:#fff;color:var(--text)}
+    .btn-primary{background:var(--brand);border-color:var(--brand);color:#fff}
 
     /* Panneau droit (liste contacts + fil) */
-    .right{display:flex;flex-direction:column;height:100vh;position:sticky;top:0}
+    .right{display:flex;flex-direction:column;height:100vh;position:sticky;top:0;background:var(--panel)}
     .right-head{background:var(--panel);border-bottom:1px solid var(--line);padding:12px 14px;display:flex;align-items:center;gap:10px}
-    .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:6px 8px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18)}
+    .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:6px 8px;border-radius:999px;background:var(--brand-weak);border:1px solid #cfe0ff}
     .statusbar{background:var(--panel);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .statusbar select{background:var(--card);border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:8px}
-    .right-body{display:grid;grid-template-columns:260px 1fr;height:100%;background:linear-gradient(180deg,#0b1220 0%,#0b1220 30%,#0d1630 100%)}
+    .statusbar select{background:#fff;border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:8px}
+    .right-body{display:grid;grid-template-columns:260px 1fr;height:100%;background:#fff}
 
-    /* Liste contacts — styles identiques à Contacts */
-    .contacts{border-right:1px solid var(--line);overflow:auto}
+    /* Liste contacts */
+    .contacts{border-right:1px solid var(--line);overflow:auto;background:#fff}
     .contacts .list{padding:10px}
     .contact{
       display:flex;align-items:center;justify-content:space-between;
-      padding:10px;border-radius:10px;margin-bottom:6px;background:rgba(255,255,255,.03);border:1px solid var(--line)
+      padding:10px;border-radius:10px;margin-bottom:6px;background:#fff;border:1px solid var(--line)
     }
-    .contact.active{background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.35)}
+    .contact.active{background:var(--brand-weak);border-color:#cfe0ff}
     .contact .type{font-size:12px;color:var(--muted)}
 
-    /* Fil de messages */
-    .thread{display:flex;flex-direction:column;height:100%}
-    .messages{flex:1;overflow:auto;padding:14px}
+    /* Fil messages */
+    .thread{display:flex;flex-direction:column;height:100%;background:#fff}
+    .messages{flex:1;overflow:auto;padding:14px;background:#fafafa;border-bottom:1px solid var(--line)}
     .msg{display:flex;margin:8px 0}
     .msg.in{justify-content:flex-start}
     .msg.out{justify-content:flex-end}
     .bubble{max-width:70%;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--bubble-in)}
     .msg.out .bubble{background:var(--bubble-out)}
     .bubble .meta{display:block;margin-top:6px;font-size:11px;color:var(--muted);text-align:right}
-    .composer{border-top:1px solid var(--line);padding:12px;background:var(--panel);display:flex;gap:8px}
-    .composer textarea{flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);resize:vertical;min-height:46px}
+    .composer{border-top:1px solid var(--line);padding:12px;background:#fff;display:flex;gap:8px}
+    .composer textarea{flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--text);resize:vertical;min-height:46px}
+
+    /* --- Responsive --- */
+    @media (max-width: 1200px){
+      .app{grid-template-columns:220px 1fr 460px}
+      .right-body{grid-template-columns:220px 1fr}
+    }
+    @media (max-width: 992px){
+      .topbar{display:flex}
+      .app{grid-template-columns:1fr}
+      .sidebar{display:none;position:fixed;inset:0 35% 0 0;z-index:30;box-shadow:4px 0 20px rgba(0,0,0,.15)}
+      .sidebar.open{display:block}
+      .center{order:2;border-right:none;border-bottom:1px solid var(--line)}
+      .right{order:3;height:auto;position:static}
+      .right-body{grid-template-columns:1fr}
+      .contacts{border-right:none;border-bottom:1px solid var(--line)}
+    }
+    @media (max-width: 640px){
+      .kanban{grid-template-columns:1fr}    /* Kanban 1 colonne */
+      .messages{padding:10px}
+      .bubble{max-width:85%}
+    }
   </style>
 </head>
 <body>
+  <!-- Topbar mobile -->
+  <div class="topbar">
+    <div class="title">Pipeline WhatsApp</div>
+    <button class="btn" onclick="toggleSidebar()">Menu</button>
+  </div>
+
   <div class="app">
-    <!-- Sidebar (même que Contacts) -->
-    <aside class="sidebar">
+    <!-- Sidebar claire -->
+    <aside class="sidebar" id="sidebar">
       <div class="brand"><span class="dot"></span><div>RDV-Pro • WhatsApp CRM</div></div>
 
       <div class="side-title">Navigation</div>
@@ -111,11 +154,11 @@
 
       <div class="side-title" style="margin-top:18px">Profils</div>
       <div class="chips">
-        <a href="/">Tous</a>
-        <a href="/?profile=client">Clients</a>
-        <a href="/?profile=prospect">Prospects</a>
-        <a href="/?profile=fournisseur">Fournisseurs</a>
-        <a href="/?profile=autre">Autres</a>
+        <a href="/" class="{{ 'active' if current_profile=='tous' else '' }}">Tous</a>
+        <a href="/?profile=client" class="{{ 'active' if current_profile=='client' else '' }}">Clients</a>
+        <a href="/?profile=prospect" class="{{ 'active' if current_profile=='prospect' else '' }}">Prospects</a>
+        <a href="/?profile=fournisseur" class="{{ 'active' if current_profile=='fournisseur' else '' }}">Fournisseurs</a>
+        <a href="/?profile=autre" class="{{ 'active' if current_profile=='autre' else '' }}">Autres</a>
       </div>
     </aside>
 
@@ -157,7 +200,7 @@
       </section>
     </main>
 
-    <!-- Panneau droit (identique look & feel Contacts) -->
+    <!-- Panneau droit -->
     <aside class="right">
       <div class="right-head">
         {% if selected %}
@@ -183,7 +226,7 @@
       </div>
 
       <div class="right-body">
-        <!-- Liste contacts (mêmes styles que l’onglet Contacts) -->
+        <!-- Liste contacts -->
         <div class="contacts">
           <div class="list">
             {% for c in contacts_list %}
@@ -229,6 +272,12 @@
   </div>
 
   <script>
+    function toggleSidebar(){
+      var sb = document.getElementById('sidebar');
+      if(!sb) return;
+      if(sb.classList.contains('open')) sb.classList.remove('open');
+      else sb.classList.add('open');
+    }
     // Auto-scroll au bas de l’historique
     (function(){ const el=document.getElementById('messages'); if(el) el.scrollTop=el.scrollHeight; })();
   </script>
