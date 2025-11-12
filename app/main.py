@@ -87,7 +87,7 @@ def dashboard(
     contact_id: int | None = None,
     profile: str | None = None,
 ):
-    """Interface colorée + bandeau gauche, et affichage de tout l'historique des messages."""
+    """Interface avec bandeau + historique complet des messages."""
     profile = profile if profile in {ContactType.CLIENT, ContactType.PROSPECT, ContactType.FOURNISSEUR, ContactType.AUTRE} else None
     columns = _get_pipeline_columns(profile)
 
@@ -129,7 +129,7 @@ def dashboard(
         ).all()
 
     return templates.TemplateResponse(
-        "dashboard_color.html",
+        "dashboard.html",  # <<< on garde le nom 'dashboard.html'
         {
             "request": request,
             "columns": columns,
@@ -143,6 +143,7 @@ def dashboard(
     )
 
 
+# --- WhatsApp send ---
 async def wa_send_text(to_msisdn: str, text: str) -> Dict[str, Any]:
     if not (WA_TOKEN and SEND_URL):
         return {"ok": False, "error": "WhatsApp API non configurée (token/phone_number_id)"}
