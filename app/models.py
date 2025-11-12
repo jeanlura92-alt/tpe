@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import Optional
 from datetime import datetime, timezone
-
 from sqlmodel import SQLModel, Field
 
 
@@ -28,7 +27,7 @@ class Contact(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     type: str = Field(default=ContactType.CLIENT, index=True)
     name: str
-    phone: str = Field(index=True)
+    phone: str = Field(index=True)  # +E.164
     email: Optional[str] = None
     company: Optional[str] = None
     address: Optional[str] = None
@@ -53,8 +52,10 @@ class Deal(SQLModel, table=True):
 class Message(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     deal_id: int = Field(foreign_key="deal.id", index=True)
-    contact_id: int = Field(foreign_key="contact.id", index=True)  # <-- AJOUT
-    direction: str = Field(index=True)            # "in" | "out"
+    contact_id: int = Field(foreign_key="contact.id", index=True)
+    direction: str = Field(index=True)         # "in" | "out"
     channel: str = Field(default="WhatsApp")
     content: str
+    # timestamps
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    sent_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))  # <-- important (NOT NULL côté DB)
