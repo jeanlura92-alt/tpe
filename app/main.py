@@ -15,14 +15,12 @@ from .models import (
     DealStatus, ContactType, MessageDirection
 )
 
-# ====== Config WhatsApp Cloud API ======
 WA_TOKEN = os.getenv("META_WA_ACCESS_TOKEN", "").strip()
 WA_PHONE_NUMBER_ID = os.getenv("META_WA_PHONE_NUMBER_ID", "").strip()
 WA_VERIFY_TOKEN = os.getenv("META_WA_VERIFY_TOKEN", "").strip()
 GRAPH_API_BASE = "https://graph.facebook.com/v20.0"
 SEND_URL = f"{GRAPH_API_BASE}/{WA_PHONE_NUMBER_ID}/messages" if WA_PHONE_NUMBER_ID else None
 
-# ====== App & UI ======
 app = FastAPI(title="CRM WhatsApp Artisans")
 templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static", check_dir=False), name="static")
@@ -30,9 +28,7 @@ app.mount("/static", StaticFiles(directory="app/static", check_dir=False), name=
 
 @app.on_event("startup")
 def on_startup():
-    # crée tables manquantes (inclut Message)
     create_db_and_tables()
-    # sécurité: si l'app tournait avant l'ajout de Message, s'assurer que la table est bien là
     try:
         SQLModel.metadata.create_all(get_session().get_bind())
     except Exception:
@@ -80,13 +76,12 @@ def _get_pipeline_columns(profile: Optional[str]) -> List[Dict[str, str]]:
     ]
 
 
-# ====== UI: Dashboard / Kanban ======
 @app.get("/", response_class=HTMLResponse)
 def dashboard(
     request: Request,
     session: Session = Depends(get_session),
     contact_id: int | None = None,
-    profile: str | None = None,  # client / prospect / fournisseur / autre
+    profile: str | None = None,
 ):
     profile = profile if profile in {ContactType.CLIENT, ContactType.PROSPECT, ContactType.FOURNISSEUR, ContactType.AUTRE} else None
     columns = _get_pipeline_columns(profile)
@@ -121,8 +116,7 @@ def dashboard(
         (DealStatus.CLOSED, _pipeline_labels_for_profile(profile)[DealStatus.CLOSED]),
     ]
 
-    # Historique des messages pour le contact sélectionné
-    messages: List[Message] = []
+    messages = []
     if selected:
         s_deal: Deal = selected["deal"]
         messages = session.exec(
@@ -144,17 +138,10 @@ def dashboard(
     )
 
 
-# ====== WhatsApp: ENVOI ======
 async def wa_send_text(to_msisdn: str, text: str) -> Dict[str, Any]:
     if not (WA_TOKEN and SEND_URL):
         return {"ok": False, "error": "WhatsApp API non configurée (token/phone_number_id)"}
-
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to_msisdn,
-        "type": "text",
-        "text": {"body": text},
-    }
+    payload = {"messaging_product": "whatsapp", "to": to_msisdn, "type": "text", "text": {"body": text}}
     headers = {"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"}
     async with httpx.AsyncClient(timeout=20) as client:
         r = await client.post(SEND_URL, json=payload, headers=headers)
@@ -185,19 +172,18 @@ async def send_whatsapp_message(
     if not contact or not contact.phone:
         return JSONResponse({"error": "contact inconnu ou sans numéro"}, status_code=404)
 
-    # Envoi WhatsApp
     result = await wa_send_text(contact.phone, content)
 
-    # Persistance de l'OUTBOUND quoi qu'il arrive (on trace l'intention)
+    # Enregistre le message sortant AVEC contact_id
     msg = Message(
         deal_id=deal.id,
+        contact_id=contact.id,                      # <-- IMPORTANT
         direction=MessageDirection.OUTBOUND,
         content=content,
         channel="WhatsApp",
     )
     session.add(msg)
 
-    # Mise à jour meta deal
     deal.last_message_preview = content[:200]
     deal.last_message_channel = "WhatsApp"
     deal.last_message_at = datetime.now(timezone.utc)
@@ -207,7 +193,6 @@ async def send_whatsapp_message(
     return RedirectResponse(url=f"/?contact_id={contact.id}", status_code=303)
 
 
-# ====== WhatsApp: WEBHOOK (GET = vérification) ======
 @app.get("/webhook/whatsapp")
 def whatsapp_webhook_verify(
     hub_mode: str = Query("", alias="hub.mode"),
@@ -219,7 +204,6 @@ def whatsapp_webhook_verify(
     return PlainTextResponse("forbidden", status_code=403)
 
 
-# ====== WhatsApp: WEBHOOK (POST = messages entrants) ======
 @app.post("/webhook/whatsapp")
 async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session)):
     try:
@@ -241,7 +225,6 @@ async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session
                     if m.get("type") == "text":
                         text_body = (m.get("text", {}) or {}).get("body", "") or ""
 
-                    # Upsert Contact
                     contact = session.exec(select(Contact).where(Contact.phone == from_msisdn)).first()
                     if not contact:
                         contact = Contact(
@@ -254,7 +237,6 @@ async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session
                         session.commit()
                         session.refresh(contact)
 
-                    # Upsert Deal (dernier pour ce contact)
                     deal = session.exec(
                         select(Deal).where(Deal.contact_id == contact.id).order_by(Deal.id.desc())
                     ).first()
@@ -268,17 +250,16 @@ async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session
                         session.commit()
                         session.refresh(deal)
 
-                    # Enregistre le message entrant
                     if text_body:
                         msg = Message(
                             deal_id=deal.id,
+                            contact_id=contact.id,          # <-- IMPORTANT
                             direction=MessageDirection.INBOUND,
                             content=text_body[:4000],
                             channel="WhatsApp",
                         )
                         session.add(msg)
 
-                    # MAJ meta deal
                     deal.last_message_preview = (text_body or "")[:200]
                     deal.last_message_channel = "WhatsApp"
                     deal.last_message_at = datetime.now(timezone.utc)
@@ -289,11 +270,9 @@ async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session
 
         return JSONResponse({"ok": True})
     except Exception as e:
-        # on renvoie 200 pour éviter replays agressifs, mais on logue l'erreur dans Render
         return JSONResponse({"ok": False, "error": str(e)}, status_code=200)
 
 
-# ====== Mise à jour statut (drag&drop ou formulaire) ======
 @app.post("/deals/{deal_id}/status")
 def update_deal_status(
     request: Request,
@@ -322,7 +301,6 @@ def update_deal_status(
     return RedirectResponse(url=redirect_url, status_code=303)
 
 
-# ====== Contacts CRUD ======
 @app.get("/contacts", response_class=HTMLResponse)
 def contacts_list_view(request: Request, session: Session = Depends(get_session)):
     rows = session.exec(select(Contact).order_by(Contact.created_at.desc())).all()
