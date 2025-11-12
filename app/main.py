@@ -1,14 +1,25 @@
 from typing import List, Dict, Any, Optional
+import os
+from datetime import datetime, timezone
 
-from fastapi import FastAPI, Depends, Request, Form
+import httpx
+from fastapi import FastAPI, Depends, Request, Form, Query
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import select, Session
 
 from .database import get_session, create_db_and_tables
 from .models import Contact, Deal, DealStatus, ContactType
 
+# ====== Config WhatsApp Cloud API ======
+WA_TOKEN = os.getenv("META_WA_ACCESS_TOKEN", "").strip()
+WA_PHONE_NUMBER_ID = os.getenv("META_WA_PHONE_NUMBER_ID", "").strip()
+WA_VERIFY_TOKEN = os.getenv("META_WA_VERIFY_TOKEN", "").strip()
+GRAPH_API_BASE = "https://graph.facebook.com/v20.0"
+SEND_URL = f"{GRAPH_API_BASE}/{WA_PHONE_NUMBER_ID}/messages" if WA_PHONE_NUMBER_ID else None
+
+# ====== App & UI ======
 app = FastAPI(title="CRM WhatsApp Artisans")
 templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static", check_dir=False), name="static")
@@ -16,9 +27,11 @@ app.mount("/static", StaticFiles(directory="app/static", check_dir=False), name=
 
 @app.on_event("startup")
 def on_startup():
+    # crée les tables manquantes + mini-migrations (dans database.py)
     create_db_and_tables()
 
 
+# ====== Pipeline libellés dynamiques ======
 def _pipeline_labels_for_profile(profile: Optional[str]) -> Dict[str, str]:
     base = {
         DealStatus.NEW: "Nouveaux messages",
@@ -115,10 +128,31 @@ def dashboard(
     )
 
 
-# ====== Webhook / WhatsApp (stubs) ======
-@app.post("/webhook/whatsapp")
-async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session)):
-    return JSONResponse({"status": "ok", "detail": "webhook stub"})
+# ====== WhatsApp: ENVOI ======
+async def wa_send_text(to_msisdn: str, text: str) -> Dict[str, Any]:
+    """
+    Envoi d'un message texte via WhatsApp Cloud API.
+    - to_msisdn au format E.164 (ex: +9665xxxxxxx)
+    """
+    if not (WA_TOKEN and SEND_URL):
+        return {"ok": False, "error": "WhatsApp API non configurée (token/phone_number_id)"}
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_msisdn,
+        "type": "text",
+        "text": {"body": text},
+    }
+    headers = {"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"}
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.post(SEND_URL, json=payload, headers=headers)
+        try:
+            data = r.json()
+        except Exception:
+            data = {"status_code": r.status_code, "text": r.text}
+    if r.status_code >= 400:
+        return {"ok": False, "status": r.status_code, "data": data}
+    return {"ok": True, "status": r.status_code, "data": data}
 
 
 @app.post("/deals/{deal_id}/send_message")
@@ -136,12 +170,103 @@ async def send_whatsapp_message(
         return JSONResponse({"error": "affaire inconnue"}, status_code=404)
 
     contact = session.get(Contact, deal.contact_id)
-    if not contact:
-        return JSONResponse({"error": "contact inconnu"}, status_code=404)
+    if not contact or not contact.phone:
+        return JSONResponse({"error": "contact inconnu ou sans numéro"}, status_code=404)
 
+    result = await wa_send_text(contact.phone, content)
+    # Maj aperçu
+    deal.last_message_preview = content[:200]
+    deal.last_message_channel = "WhatsApp"
+    deal.last_message_at = datetime.now(timezone.utc)
+    session.add(deal)
+    session.commit()
+
+    # On reste dans l'UI quoi qu'il arrive
     return RedirectResponse(url=f"/?contact_id={contact.id}", status_code=303)
 
 
+# ====== WhatsApp: WEBHOOK (GET = vérification) ======
+@app.get("/webhook/whatsapp")
+def whatsapp_webhook_verify(
+    hub_mode: str = Query("", alias="hub.mode"),
+    hub_verify_token: str = Query("", alias="hub.verify_token"),
+    hub_challenge: str = Query("", alias="hub.challenge"),
+):
+    if hub_mode == "subscribe" and hub_verify_token == WA_VERIFY_TOKEN:
+        return PlainTextResponse(hub_challenge)
+    return PlainTextResponse("forbidden", status_code=403)
+
+
+# ====== WhatsApp: WEBHOOK (POST = messages entrants) ======
+@app.post("/webhook/whatsapp")
+async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session)):
+    try:
+        entries = payload.get("entry", [])
+        for entry in entries:
+            for change in entry.get("changes", []):
+                value = change.get("value", {})
+                messages = value.get("messages", [])
+                contacts_meta = value.get("contacts", [])
+                profile_name = None
+                if contacts_meta:
+                    profile_name = contacts_meta[0].get("profile", {}).get("name")
+
+                for m in messages:
+                    from_msisdn = m.get("from")
+                    if from_msisdn and not from_msisdn.startswith("+"):
+                        from_msisdn = f"+{from_msisdn}"
+                    text_body = m.get("text", {}).get("body") if m.get("type") == "text" else ""
+
+                    # Upsert Contact
+                    contact = session.exec(select(Contact).where(Contact.phone == from_msisdn)).first()
+                    if not contact:
+                        contact = Contact(
+                            type=ContactType.CLIENT,
+                            name=profile_name or from_msisdn,
+                            phone=from_msisdn,
+                            tags="Whatsapp",
+                        )
+                        session.add(contact)
+                        session.commit()
+                        session.refresh(contact)
+                        deal = Deal(
+                            title="Conversation WhatsApp",
+                            contact_id=contact.id,
+                            status=DealStatus.NEW,
+                            last_message_preview=text_body or "",
+                            last_message_channel="WhatsApp",
+                            last_message_at=datetime.now(timezone.utc),
+                        )
+                        session.add(deal)
+                        session.commit()
+                    else:
+                        deal = session.exec(
+                            select(Deal).where(Deal.contact_id == contact.id).order_by(Deal.id.desc())
+                        ).first()
+                        if not deal:
+                            deal = Deal(
+                                title="Conversation WhatsApp",
+                                contact_id=contact.id,
+                                status=DealStatus.NEW,
+                            )
+                            session.add(deal)
+                            session.commit()
+                            session.refresh(deal)
+
+                        deal.last_message_preview = (text_body or "")[:200]
+                        deal.last_message_channel = "WhatsApp"
+                        deal.last_message_at = datetime.now(timezone.utc)
+                        if deal.status == DealStatus.CLOSED:
+                            deal.status = DealStatus.NEW
+                        session.add(deal)
+                        session.commit()
+
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=200)
+
+
+# ====== Mise à jour statut (drag&drop ou formulaire) ======
 @app.post("/deals/{deal_id}/status")
 def update_deal_status(
     request: Request,
@@ -150,11 +275,6 @@ def update_deal_status(
     next: Optional[str] = Form(None),
     session: Session = Depends(get_session),
 ):
-    """
-    Supporte 2 modes :
-    - Requête JS (fetch) -> renvoie JSON
-    - Formulaire HTML -> redirige (303) vers next ou vers /?contact_id=...
-    """
     if status not in {DealStatus.NEW, DealStatus.QUOTE, DealStatus.SCHEDULED, DealStatus.CLOSED}:
         return JSONResponse({"error": "statut invalide"}, status_code=400)
 
@@ -166,19 +286,16 @@ def update_deal_status(
     session.add(deal)
     session.commit()
 
-    # Mode AJAX ?
     accept = (request.headers.get("accept") or "").lower()
     is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in accept
-
     if is_ajax:
         return JSONResponse({"ok": True, "deal_id": deal.id, "new_status": status})
 
-    # Mode formulaire → redirect
     redirect_url = next or f"/?contact_id={deal.contact_id}"
     return RedirectResponse(url=redirect_url, status_code=303)
 
 
-# ====== Contacts ======
+# ====== Contacts CRUD ======
 @app.get("/contacts", response_class=HTMLResponse)
 def contacts_list_view(request: Request, session: Session = Depends(get_session)):
     rows = session.exec(select(Contact).order_by(Contact.created_at.desc())).all()
