@@ -1,8 +1,16 @@
-# app/models.py
-from datetime import datetime
+from __future__ import annotations
 from typing import Optional
+from datetime import datetime, timezone
 
 from sqlmodel import SQLModel, Field
+
+
+# ---- Constantes "enum" simples (conformes au reste de l'app) ----
+class DealStatus:
+    NEW = "new"
+    QUOTE = "quote"
+    SCHEDULED = "scheduled"
+    CLOSED = "closed"
 
 
 class ContactType:
@@ -12,59 +20,46 @@ class ContactType:
     AUTRE = "autre"
 
 
-class DealStatus:
-    NEW = "new"             # Nouveaux messages
-    QUOTE = "quote"         # Devis en cours
-    SCHEDULED = "scheduled" # Interventions planifiées
-    CLOSED = "closed"       # Facturé / Clôturé
+class MessageDirection:
+    INBOUND = "in"   # reçu depuis WhatsApp
+    OUTBOUND = "out" # envoyé depuis l'app
 
 
+# ---- Modèles ----
 class Contact(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    type: str = Field(
-        default=ContactType.CLIENT,
-        description="client/prospect/fournisseur/autre"
-    )
+    type: str = Field(default=ContactType.CLIENT, index=True)
     name: str
-    phone: str
+    phone: str = Field(index=True)  # format +E.164
     email: Optional[str] = None
     company: Optional[str] = None
     address: Optional[str] = None
-    tags: Optional[str] = Field(
-        default=None, description="tags séparés par des virgules"
-    )
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    tags: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class Deal(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
-    status: str = Field(
-        default=DealStatus.NEW,
-        description="new/quote/scheduled/closed"
-    )
-    contact_id: int = Field(foreign_key="contact.id")
-    amount_estimated: Optional[float] = None
+    contact_id: int = Field(foreign_key="contact.id", index=True)
+    status: str = Field(default=DealStatus.NEW, index=True)
+    amount_estimated: Optional[int] = None
+
+    # méta dernier message pour le Kanban
     last_message_preview: Optional[str] = None
-    last_message_channel: Optional[str] = Field(
-        default="WhatsApp", description="WhatsApp / téléphone / email..."
-    )
+    last_message_channel: Optional[str] = None
     last_message_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
 
-
-class MessageDirection:
-    INBOUND = "inbound"
-    OUTBOUND = "outbound"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class Message(SQLModel, table=True):
+    """
+    Historique fin de conversation (WhatsApp uniquement ici).
+    """
     id: Optional[int] = Field(default=None, primary_key=True)
-    deal_id: int = Field(foreign_key="deal.id")
-    contact_id: int = Field(foreign_key="contact.id")
-    direction: str = Field(
-        default=MessageDirection.INBOUND,
-        description="inbound = client -> artisan, outbound = artisan -> client"
-    )
+    deal_id: int = Field(foreign_key="deal.id", index=True)
+    direction: str = Field(index=True)            # "in" | "out"
+    channel: str = Field(default="WhatsApp")
     content: str
-    sent_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
