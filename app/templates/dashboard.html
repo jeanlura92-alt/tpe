@@ -7,22 +7,28 @@
   .panel-title{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;}
   .badge{font-size:11px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-strong);border:1px solid #bfdbfe;}
   .panel-subtitle{font-size:12px;color:var(--text-soft);}
+  .filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 
   .kanban{margin-top:8px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;overflow-x:auto;}
   .kanban-column{background:var(--bg-soft-2);border-radius:10px;border:1px solid var(--border);padding:10px;display:flex;flex-direction:column;min-width:220px;}
-  .card{border-radius:10px;border:1px solid var(--border);padding:8px;background:#fff;transition:.15s;cursor:pointer;}
+  .kanban-title{font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:6px;}
+  .cards{display:flex;flex-direction:column;gap:8px;min-height:40px}
+  .card{border-radius:10px;border:1px solid var(--border);padding:8px;background:#fff;transition:.15s;cursor:grab}
+  .card:active{cursor:grabbing}
   .card:hover{border-color:var(--accent-soft);box-shadow:0 1px 4px rgba(15,23,42,.08);}
   .card.active{border-color:var(--accent);background:#eff6ff;}
+  .ghost{opacity:.4}
 
   .chat-header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;}
   .chat-contact{display:flex;align-items:center;gap:10px;}
   .avatar{width:32px;height:32px;border-radius:999px;background:var(--accent-soft);display:inline-flex;align-items:center;justify-content:center;font-weight:600;color:var(--accent-strong);}
-  .chip{border-radius:999px;padding:3px 9px;font-size:11px;border:1px solid var(--border);background:var(--bg-soft-2);color:var(--text-soft);}
   .chat-body{margin-top:6px;display:flex;gap:10px;}
   .chat-pane{flex:1;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--bg-soft-2);}
   .chat-input-wrapper{margin-top:8px;display:flex;flex-direction:column;gap:6px;}
   .chat-input-row{display:flex;gap:6px;}
   .chat-input{flex:1;border-radius:999px;border:1px solid var(--border);padding:8px 12px;font-size:13px;background:#fff;color:var(--text);}
+  .btn{border-radius:999px;border:1px solid var(--border);padding:6px 14px;font-size:13px;background:#fff;color:var(--text-soft);cursor:pointer}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
 
   .contacts-panel{width:240px;border:1px solid var(--border);border-radius:10px;padding:8px;background:#fff;}
   .contacts-title{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-soft);margin-bottom:6px;}
@@ -45,32 +51,45 @@
     <div class="panel-header">
       <div>
         <div class="panel-title">Pipeline WhatsApp <span class="badge">Artisans & TPE</span></div>
-        <div class="panel-subtitle">Demandes classées par étape.</div>
+        <div class="panel-subtitle">Demandes classées par étape. Vue : {{ current_profile|capitalize }}</div>
       </div>
+      <form class="filters" method="get" action="/">
+        <label style="font-size:12px;color:var(--text-soft)">Profil :</label>
+        <select name="profile" class="chat-input" onchange="this.form.submit()">
+          <option value="" {% if current_profile=='tous' %}selected{% endif %}>Tous</option>
+          <option value="client" {% if current_profile=='client' %}selected{% endif %}>Clients</option>
+          <option value="prospect" {% if current_profile=='prospect' %}selected{% endif %}>Prospects</option>
+          <option value="fournisseur" {% if current_profile=='fournisseur' %}selected{% endif %}>Fournisseurs</option>
+          <option value="autre" {% if current_profile=='autre' %}selected{% endif %}>Autres</option>
+        </select>
+      </form>
     </div>
 
-    <div class="kanban">
+    <div class="kanban" id="kanban">
       {% for col in columns %}
       {% set deals = deals_by_status.get(col.id, []) %}
-      <div class="kanban-column">
-        <div style="font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:6px;">
-          {{ col.label }} ({{ deals|length }})
-        </div>
-        {% for item in deals %}
-        {% set deal = item.deal %}
-        {% set contact = item.contact %}
-        <a href="/?contact_id={{ contact.id }}" style="text-decoration:none;">
-          <div class="card {% if selected and selected.contact.id == contact.id %}active{% endif %}">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <div style="font-weight:500;">{{ contact.name }}</div>
-              <div class="chip">{{ deal.amount_estimated if deal.amount_estimated is not none else "—" }} €</div>
+      <div class="kanban-column" data-status="{{ col.id }}">
+        <div class="kanban-title">{{ col.label }} ({{ deals|length }})</div>
+        <div class="cards" ondragover="event.preventDefault();" ondrop="onDrop(event, '{{ col.id }}')">
+          {% for item in deals %}
+          {% set deal = item.deal %}
+          {% set contact = item.contact %}
+          <a href="/?contact_id={{ contact.id }}{% if current_profile!='tous' %}&profile={{ current_profile }}{% endif %}" style="text-decoration:none;">
+            <div class="card {% if selected and selected.contact.id == contact.id %}active{% endif %}"
+                 draggable="true"
+                 ondragstart="onDragStart(event, {{ deal.id }})"
+                 data-deal="{{ deal.id }}">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-weight:500;">{{ contact.name }}</div>
+                <div style="font-size:11px;color:var(--text-soft);">{{ deal.amount_estimated if deal.amount_estimated is not none else "—" }} €</div>
+              </div>
+              <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">{{ deal.title }}</div>
             </div>
-            <div style="font-size:12px;color:var(--text-soft);margin-top:2px;">{{ deal.title }}</div>
-          </div>
-        </a>
-        {% else %}
-        <div style="font-size:12px;color:var(--text-soft);">Aucun dossier.</div>
-        {% endfor %}
+          </a>
+          {% else %}
+          <div style="font-size:12px;color:var(--text-soft);">–</div>
+          {% endfor %}
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -124,7 +143,7 @@
       <aside class="contacts-panel">
         <div class="contacts-title">Tous les contacts</div>
         {% for c in contacts_list %}
-        <a href="/?contact_id={{ c.id }}" style="text-decoration:none;">
+        <a href="/?contact_id={{ c.id }}{% if current_profile!='tous' %}&profile={{ current_profile }}{% endif %}" style="text-decoration:none;">
           <div class="sidepanel-item {% if selected and selected.contact.id == c.id %}active{% endif %}">
             <strong>{{ c.name }}</strong>
             <span style="font-size:11px;color:var(--text-soft);">{{ c.phone }}</span>
@@ -138,4 +157,41 @@
     </div>
   </section>
 </main>
+
+<script>
+  let draggedDealId = null;
+
+  function onDragStart(ev, dealId) {
+    draggedDealId = dealId;
+    ev.dataTransfer.setData("text/plain", String(dealId));
+    // petit effet visuel
+    const el = ev.target.closest(".card");
+    if (el) el.classList.add("ghost");
+  }
+
+  function onDrop(ev, newStatus) {
+    ev.preventDefault();
+    const data = ev.dataTransfer.getData("text/plain") || String(draggedDealId || "");
+    if (!data) return;
+
+    // Call POST /deals/{id}/status pour maj le statut
+    fetch(`/deals/${data}/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ status: newStatus })
+    })
+    .then(r => r.json())
+    .then(() => {
+      // Reload pour refléter le changement simplement
+      window.location.reload();
+    })
+    .catch(() => {
+      alert("Erreur lors du déplacement.");
+    })
+    .finally(() => {
+      draggedDealId = null;
+      document.querySelectorAll(".card.ghost").forEach(el => el.classList.remove("ghost"));
+    });
+  }
+</script>
 {% endblock %}
