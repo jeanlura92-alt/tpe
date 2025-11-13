@@ -5,6 +5,27 @@
   <title>CRM WhatsApp Artisans</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/static/style.css">
+  <style>
+    /* Mini-ajouts pour le menu dans la carte */
+    .deal { position: relative; padding-top: 26px; }
+    .deal .inline-status {
+      position: absolute; top: 6px; right: 6px; z-index: 2;
+      display: inline-flex; align-items: center; gap: 4px;
+      background: var(--card-bg, #fff); border: 1px solid rgba(0,0,0,.06);
+      border-radius: 6px; padding: 2px 6px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.06);
+      max-width: calc(100% - 12px);
+    }
+    .deal .inline-status label {
+      font-size: 11px; color: var(--muted, #667085); white-space: nowrap;
+    }
+    .deal .inline-status select {
+      font-size: 12px; border: none; background: transparent;
+      padding: 2px 0; outline: none; max-width: 150px;
+    }
+    /* Empêche que le select déborde visuellement */
+    .deal { overflow: hidden; }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -38,6 +59,16 @@
             {% for item in deals_by_status[col.id] %}
               <div class="deal" draggable="true" data-deal-id="{{ item.deal.id }}"
                    data-open-href="/?contact_id={{ item.contact.id }}&profile={{ current_profile }}">
+                <!-- Menu déroulant inline pour changer de colonne -->
+                <form class="inline-status" data-deal-id="{{ item.deal.id }}" onsubmit="return false;">
+                  <label for="sel-{{ item.deal.id }}">Statut</label>
+                  <select id="sel-{{ item.deal.id }}" class="inline-status-select" data-current="{{ item.deal.status }}">
+                    {% for opt in columns %}
+                      <option value="{{ opt.id }}" {% if item.deal.status == opt.id %}selected{% endif %}>{{ opt.label }}</option>
+                    {% endfor %}
+                  </select>
+                </form>
+
                 <div class="name">{{ item.contact.name }}</div>
                 <div class="meta small muted">
                   {{ item.contact.phone }} • {{ item.deal.last_message_channel or '—' }} •
@@ -161,11 +192,13 @@
   </div>
 
   <script>
-    // Drag & Drop + clic carte (inchangé)
+    // Drag & Drop + clic carte
     (function() {
       let draggedEl = null, didDrag = false;
 
       document.addEventListener("click", (e) => {
+        const isSelect = e.target.closest(".inline-status-select");
+        if (isSelect) return; // ne pas suivre le lien quand on utilise le select
         const card = e.target.closest(".deal[draggable='true']");
         if (!card) return;
         if (didDrag) { didDrag = false; return; }
@@ -209,6 +242,53 @@
       function flash(el){ el.style.outline="2px solid #86efac"; setTimeout(()=>{ el.style.outline="none"; },600); }
     })();
 
+    // Changement de statut via menu déroulant intégré à la carte
+    (function(){
+      function moveCardDom(dealId, newStatus){
+        const card = document.querySelector(`.deal[data-deal-id="${dealId}"]`);
+        const dest = document.querySelector(`.dropzone[data-status="${newStatus}"]`);
+        if(card && dest && card.parentElement!==dest){ dest.appendChild(card); }
+      }
+      document.addEventListener("change", async (e)=>{
+        const sel = e.target.closest(".inline-status-select");
+        if(!sel) return;
+        e.stopPropagation();
+        const form = sel.closest(".inline-status");
+        const dealId = form?.dataset?.dealId;
+        const newStatus = sel.value;
+        if(!dealId || !newStatus) return;
+
+        // POST AJAX
+        try{
+          const fd = new FormData(); fd.append("status", newStatus);
+          const resp = await fetch(`/deals/${dealId}/status`, {
+            method: "POST",
+            headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+            body: fd
+          });
+          let data=null; try{ data = await resp.json(); }catch(_){}
+          if(resp.ok && data && data.ok){
+            moveCardDom(dealId, newStatus);
+          }else{
+            alert("Mise à jour du statut impossible.");
+            // Revenir sur l’option précédente
+            sel.value = sel.dataset.current || sel.value;
+          }
+        }catch(err){
+          alert("Erreur réseau : " + err);
+          sel.value = sel.dataset.current || sel.value;
+        }
+      });
+
+      // Empêche la propagation de clic pour ne pas ouvrir la fiche lors d’un tap sur le select
+      document.addEventListener("mousedown", (e)=>{
+        if(e.target.closest(".inline-status")) e.stopPropagation();
+      });
+      document.addEventListener("touchstart", (e)=>{
+        if(e.target.closest(".inline-status")) e.stopPropagation();
+      });
+    })();
+
     // Filtre “Tous les contacts” (recherche locale)
     (function(){
       const input = document.getElementById('contactSearch');
@@ -224,4 +304,4 @@
     })();
   </script>
 </body>
-</html> 
+</html>
