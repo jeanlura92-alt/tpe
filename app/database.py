@@ -1,8 +1,7 @@
 import os
-from contextlib import contextmanager
 from sqlmodel import SQLModel, create_engine, Session
-from sqlalchemy import text, inspect
-
+from sqlalchemy import text
+from contextlib import contextmanager
 
 def _mask_url(url: str) -> str:
     try:
@@ -17,113 +16,57 @@ def _mask_url(url: str) -> str:
     except Exception:
         return url
 
-
+# 1) DATABASE_URL
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL manquant. Définis cette variable sur Render.")
 
-# forcer psycopg v3
+# 2) Normalisation vers psycopg (psycopg3)
+# Si tu utilises psycopg2-binary, remplace par 'postgresql+psycopg2://'
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
-elif DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+
+# 3) Pooling: limiter la concurrence (render free/shared) et éviter les fuites
+POOL_SIZE = int(os.getenv("SQL_POOL_SIZE", "5"))
+MAX_OVERFLOW = int(os.getenv("SQL_MAX_OVERFLOW", "5"))
+POOL_TIMEOUT = int(os.getenv("SQL_POOL_TIMEOUT", "20"))
+POOL_RECYCLE = int(os.getenv("SQL_POOL_RECYCLE", "1800"))
 
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
-    max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "5")),
     echo=os.getenv("SQL_ECHO", "0") == "1",
+    pool_size=POOL_SIZE,
+    max_overflow=MAX_OVERFLOW,
+    pool_timeout=POOL_TIMEOUT,
+    pool_recycle=POOL_RECYCLE,
+    pool_pre_ping=True,
+    future=True,
 )
+
+def create_db_and_tables() -> None:
+    # si tu utilises alembic, ne pas appeler ceci en prod
+    SQLModel.metadata.create_all(engine)
 
 @contextmanager
 def session_scope():
-    with Session(engine) as session:
-        yield session
-
-def get_session() -> Session:
-    return Session(engine)
-
-
-def _alter_table_add_columns_if_needed(table: str, column_defs: list[str]):
-    for frag in column_defs:
-        stmt = f'ALTER TABLE "{table}" {frag};'
-        with engine.begin() as conn:
-            conn.execute(text(stmt))
-
-
-def _run_migrations():
-    # crée toutes les tables déclarées
-    SQLModel.metadata.create_all(engine)
-
-    insp = inspect(engine)
-    tables = set(insp.get_table_names())
-
-    # CONTACT
-    if "contact" in tables:
-        cols = {c["name"] for c in insp.get_columns("contact")}
-        if "type" not in cols:
-            _alter_table_add_columns_if_needed("contact", [
-                'ADD COLUMN IF NOT EXISTS "type" TEXT DEFAULT \'client\''
-            ])
-
-    # DEAL
-    if "deal" in tables:
-        cols = {c["name"] for c in insp.get_columns("deal")}
-        adds = []
-        if "last_message_preview" not in cols:
-            adds.append('ADD COLUMN IF NOT EXISTS "last_message_preview" TEXT')
-        if "last_message_channel" not in cols:
-            adds.append('ADD COLUMN IF NOT EXISTS "last_message_channel" TEXT')
-        if "last_message_at" not in cols:
-            adds.append('ADD COLUMN IF NOT EXISTS "last_message_at" TIMESTAMPTZ')
-        if adds:
-            _alter_table_add_columns_if_needed("deal", adds)
-
-    # MESSAGE
-    if "message" not in tables:
-        SQLModel.metadata.create_all(engine)
-    else:
-        cols = {c["name"] for c in insp.get_columns("message")}
-        adds = []
-        if "deal_id" not in cols:
-            adds.append('ADD COLUMN IF NOT EXISTS "deal_id" INTEGER')
-        if "contact_id" not in cols:
-            adds.append('ADD COLUMN IF NOT EXISTS "contact_id" INTEGER')
-        if "direction" not in cols:
-            adds.append('ADD COLUMN IF NOT EXISTS "direction" TEXT')
-        if "channel" not in cols:
-            adds.append('ADD COLUMN IF NOT EXISTS "channel" TEXT')
-        if "content" not in cols:
-            adds.append('ADD COLUMN IF NOT EXISTS "content" TEXT NOT NULL DEFAULT \'\'')
-        if "created_at" not in cols:
-            adds.append('ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW()')
-        if "sent_at" not in cols:
-            adds.append('ADD COLUMN IF NOT EXISTS "sent_at" TIMESTAMPTZ DEFAULT NOW()')  # <-- assure une valeur
-
-        if adds:
-            _alter_table_add_columns_if_needed("message", adds)
-
-        # backfill sent_at & contact_id si null
-        with engine.begin() as conn:
-            # sent_at = created_at si absent
-            conn.execute(text("""
-                UPDATE "message" SET sent_at = COALESCE(sent_at, created_at, NOW())
-                WHERE sent_at IS NULL
-            """))
-            # contact_id depuis deal
-            conn.execute(text("""
-                UPDATE "message" m
-                SET contact_id = d.contact_id
-                FROM "deal" d
-                WHERE m.deal_id = d.id AND (m.contact_id IS NULL OR m.contact_id = 0)
-            """))
-
-
-def create_db_and_tables():
+    """Context manager simple pour garantir la fermeture (anti leak)."""
+    s = Session(engine)
     try:
-        _run_migrations()
-    except Exception as e:
-        safe_url = _mask_url(DATABASE_URL)
-        print(f"[DB] Erreur migrations sur {safe_url}: {e}")
-        SQLModel.metadata.create_all(engine)
+        yield s
+        # commit uniquement si c’est voulu dans la route (laisser la route décider)
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+
+# Dépendance FastAPI (yield) – fermeture assurée
+def get_session():
+    s = Session(engine)
+    try:
+        yield s
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
