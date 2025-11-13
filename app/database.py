@@ -1,7 +1,7 @@
 import os
 from sqlmodel import SQLModel, create_engine, Session
-from sqlalchemy import text
 from contextlib import contextmanager
+
 
 def _mask_url(url: str) -> str:
     try:
@@ -16,17 +16,25 @@ def _mask_url(url: str) -> str:
     except Exception:
         return url
 
-# 1) DATABASE_URL
+
+# 1) DATABASE_URL obligatoire
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL manquant. Définis cette variable sur Render.")
 
-# 2) Normalisation vers psycopg (psycopg3)
-# Si tu utilises psycopg2-binary, remplace par 'postgresql+psycopg2://'
+# 2) Normalisation d'URL ➜ forcer le dialecte psycopg (psycopg3)
+#    - postgres://...                 ➜ postgresql+psycopg://...
+#    - postgresql://...               ➜ postgresql+psycopg://...
+#    - postgresql+psycopg2://...      ➜ postgresql+psycopg://...
+#    - postgresql+psycopg://...       (déjà OK)
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql+psycopg2://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql+psycopg2://", "postgresql+psycopg://", 1)
 
-# 3) Pooling: limiter la concurrence (render free/shared) et éviter les fuites
+# 3) Pooling Render (petit dyno)
 POOL_SIZE = int(os.getenv("SQL_POOL_SIZE", "5"))
 MAX_OVERFLOW = int(os.getenv("SQL_MAX_OVERFLOW", "5"))
 POOL_TIMEOUT = int(os.getenv("SQL_POOL_TIMEOUT", "20"))
@@ -43,24 +51,23 @@ engine = create_engine(
     future=True,
 )
 
+
 def create_db_and_tables() -> None:
-    # si tu utilises alembic, ne pas appeler ceci en prod
     SQLModel.metadata.create_all(engine)
+
 
 @contextmanager
 def session_scope():
-    """Context manager simple pour garantir la fermeture (anti leak)."""
     s = Session(engine)
     try:
         yield s
-        # commit uniquement si c’est voulu dans la route (laisser la route décider)
     finally:
         try:
             s.close()
         except Exception:
             pass
 
-# Dépendance FastAPI (yield) – fermeture assurée
+
 def get_session():
     s = Session(engine)
     try:
