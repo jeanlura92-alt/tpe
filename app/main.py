@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List, Dict, Set
 
 from fastapi import FastAPI, Request, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -12,22 +12,50 @@ from .database import create_db_and_tables, get_session
 from .models import Contact, Deal, Message
 
 # -----------------------------------------------------------------------------
-# App & static / templates
+# App / static / templates
 # -----------------------------------------------------------------------------
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")  # <= UTILISER ÇA, pas app.state
+templates = Jinja2Templates(directory="app/templates")
 
 # -----------------------------------------------------------------------------
-# Kanban columns (clé 'label' utilisée par dashboard.html)
+# Pipelines par profil
+# (ajuste les étiquettes/ids si tu veux d'autres colonnes)
 # -----------------------------------------------------------------------------
-COLUMNS = [
-    {"id": "new",         "label": "Nouveau"},
-    {"id": "in_progress", "label": "En cours"},
-    {"id": "waiting",     "label": "En attente"},
-    {"id": "done",        "label": "Terminé"},
-]
-COLUMN_IDS = {c["id"] for c in COLUMNS}
+PIPELINES: Dict[str, List[Dict[str, str]]] = {
+    "client": [
+        {"id": "new",         "label": "Nouveau"},
+        {"id": "in_progress", "label": "En cours"},
+        {"id": "waiting",     "label": "En attente"},
+        {"id": "done",        "label": "Terminé"},
+    ],
+    "prospect": [
+        {"id": "new",      "label": "Nouveau"},
+        {"id": "quote",    "label": "Devis envoyé"},
+        {"id": "followup", "label": "Relance"},
+        {"id": "won",      "label": "Gagné"},
+        {"id": "lost",     "label": "Perdu"},
+    ],
+    "fournisseur": [
+        {"id": "new",     "label": "Nouveau"},
+        {"id": "rfq",     "label": "Demande"},
+        {"id": "ordered", "label": "Commandé"},
+        {"id": "received","label": "Reçu"},
+    ],
+    "autre": [
+        {"id": "new",         "label": "Nouveau"},
+        {"id": "in_progress", "label": "En cours"},
+        {"id": "done",        "label": "Terminé"},
+    ],
+}
+
+# Ensemble de TOUS les statuts autorisés (pour sécuriser l’API)
+ALL_STATUS_IDS: Set[str] = {c["id"] for cols in PIPELINES.values() for c in cols}
+
+def get_columns(profile: Optional[str]) -> List[Dict[str, str]]:
+    if profile and profile in PIPELINES:
+        return PIPELINES[profile]
+    return []  # pas de Kanban si profil non choisi
 
 # -----------------------------------------------------------------------------
 # Startup
@@ -44,21 +72,22 @@ def dashboard(
     request: Request,
     contact_id: Optional[int] = None,
     profile: Optional[str] = None,
-    msgs_before: Optional[str] = None,   # placeholders si tu ajoutes la pagination
+    msgs_before: Optional[str] = None,
     msgs_limit: Optional[int] = None,
     session: Session = Depends(get_session),
 ):
     try:
-        # 1) Tous les contacts pour le panneau droit (toujours affichés)
-        all_contacts = session.exec(
-            select(Contact).order_by(Contact.name)
-        ).all()
+        # Tous les contacts pour le panneau droit
+        all_contacts = session.exec(select(Contact).order_by(Contact.name)).all()
 
-        # 2) Profil courant pour afficher/masquer le Kanban
-        current_profile = profile if profile in ["client", "prospect", "fournisseur", "autre"] else None
+        current_profile = profile if profile in PIPELINES else None
+        columns = get_columns(current_profile)
 
-        # 3) Deals par statut (uniquement si profil sélectionné)
-        deals_by_status = {c["id"]: [] for c in COLUMNS}
+        # Prépare les colonnes du Kanban si un profil est choisi
+        deals_by_status: Dict[str, List[Dict[str, object]]] = {c["id"]: [] for c in columns}
+        valid_status_ids = set(deals_by_status.keys())
+        default_status = columns[0]["id"] if columns else None
+
         if current_profile:
             rows = session.exec(
                 select(Deal, Contact)
@@ -66,9 +95,13 @@ def dashboard(
                 .where(Contact.type == current_profile)
             ).all()
             for deal, contact in rows:
-                deals_by_status[deal.status].append({"deal": deal, "contact": contact})
+                status_key = deal.status if deal.status in valid_status_ids else default_status
+                # si aucune colonne (shouldn't happen) on skip
+                if status_key is None:
+                    continue
+                deals_by_status[status_key].append({"deal": deal, "contact": contact})
 
-        # 4) Fil WhatsApp (si un contact est sélectionné)
+        # Fil WhatsApp si un contact est sélectionné
         selected = None
         messages = []
         if contact_id:
@@ -85,24 +118,22 @@ def dashboard(
 
         return templates.TemplateResponse("dashboard.html", {
             "request": request,
-            "contacts": all_contacts,              # <= IMPORTANT pour la liste à droite
+            "contacts": all_contacts,
             "current_profile": current_profile,
             "deals_by_status": deals_by_status,
-            "columns": COLUMNS,
+            "columns": columns,
             "selected": selected,
             "messages": messages,
-            # valeurs pour UI (facultatives)
             "messages_next_cursor": None,
             "messages_limit": msgs_limit or 50,
             "total_contacts": len(all_contacts),
-            "total_deals": sum(len(v) for v in deals_by_status.values())
+            "total_deals": sum(len(v) for v in deals_by_status.values()) if current_profile else 0,
         })
     finally:
-        # Sécurise la fermeture pour éviter les timeouts de pool
         session.close()
 
 # -----------------------------------------------------------------------------
-# Maj contact
+# Mise à jour d’un contact
 # -----------------------------------------------------------------------------
 @app.post("/contacts/{contact_id}/update")
 def update_contact(
@@ -135,17 +166,17 @@ def update_contact(
         session.close()
 
 # -----------------------------------------------------------------------------
-# Drag & Drop : changer le statut d'un deal
+# Drag & Drop : changer le statut d’un deal
 # -----------------------------------------------------------------------------
 @app.post("/deals/{deal_id}/status")
 def update_deal_status(
     deal_id: int,
-    status: str = Form(...),   # <= correspond EXACTEMENT au FormData 'status' envoyé par le JS
+    status: str = Form(...),  # FormData('status') envoyé par le JS
     session: Session = Depends(get_session),
 ):
     try:
-        if status not in COLUMN_IDS:
-            raise HTTPException(400, "Statut invalide")
+        if status not in ALL_STATUS_IDS:
+            raise HTTPException(400, f"Statut invalide: {status}")
 
         deal = session.get(Deal, deal_id)
         if not deal:
@@ -164,7 +195,7 @@ def update_deal_status(
 @app.post("/deals/{deal_id}/send_message")
 def send_whatsapp_message(
     deal_id: int,
-    content: str = Form(...),  # <= correspond EXACTEMENT au <textarea name="content">
+    content: str = Form(...),  # <textarea name="content">
     session: Session = Depends(get_session),
 ):
     try:
@@ -184,19 +215,17 @@ def send_whatsapp_message(
             channel="WhatsApp",
             content=content,
             created_at=now,
-            sent_at=now,  # si ta colonne est NOT NULL, on l'alimente
+            sent_at=now,  # si colonne NOT NULL
         )
         session.add(msg)
 
-        # Hydrate le résumé sur le deal (utile pour le Kanban)
+        # Mettre à jour le résumé sur le Deal pour le Kanban
         deal.last_message_preview = (content or "")[:120]
         deal.last_message_channel = "WhatsApp"
         deal.last_message_at = now
         session.add(deal)
 
         session.commit()
-        # (Ici tu peux déclencher l'appel API Meta si nécessaire)
-
         return JSONResponse({"ok": True})
     finally:
         session.close()
@@ -208,7 +237,6 @@ def send_whatsapp_message(
 async def receive_webhook(request: Request, session: Session = Depends(get_session)):
     try:
         data = await request.json()
-        # Exemple d'extraction basique (à adapter selon la payload réelle)
         if "entry" in data:
             for entry in data["entry"]:
                 for change in entry.get("changes", []):
@@ -241,7 +269,6 @@ async def receive_webhook(request: Request, session: Session = Depends(get_sessi
                             created_at=now,
                             sent_at=now,
                         ))
-                        # maj résumé deal
                         deal.last_message_preview = (text or "")[:120]
                         deal.last_message_channel = "WhatsApp"
                         deal.last_message_at = now
