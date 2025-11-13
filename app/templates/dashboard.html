@@ -8,7 +8,7 @@
     :root { --bg:#f7f7fb; --card:#fff; --muted:#6b7280; --text:#111827; --line:#e5e7eb; --brand:#0f172a; }
     html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial; }
     a { color:inherit; text-decoration:none; }
-    .layout { display:grid; grid-template-columns: 240px 1fr 520px; gap:16px; padding:16px; }
+    .layout { display:grid; grid-template-columns: 240px 1fr 420px; gap:16px; padding:16px; }
     .card { background:var(--card); border:1px solid var(--line); border-radius:12px; }
     .sidebar { padding:12px; position:sticky; top:16px; height: calc(100vh - 32px); overflow:auto; }
     .sidebar h3 { margin:6px 0 12px; font-size:14px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
@@ -22,22 +22,31 @@
     .small { font-size:12px; }
 
     /* Kanban */
-    .kanban { display:grid; grid-template-columns: repeat(4, minmax(240px,1fr)); gap:12px; }
+    .kanban { display:grid; grid-template-columns: repeat(4, minmax(220px,1fr)); gap:12px; }
     .col { padding:8px; min-height:80px; }
     .col h4 { margin:6px 6px 10px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
-    .dropzone { min-height: 60px; padding: 6px; border-radius:12px; outline:2px dashed transparent; transition: background .15s, outline-color .15s; }
+    .dropzone { min-height: 40px; padding: 4px; border-radius:10px; transition: background .15s, outline-color .15s; outline:2px dashed transparent; }
     .dropzone.dragover { background:#f1f5ff; outline-color:#c7d2fe; }
     .deal { padding:10px; border:1px solid var(--line); border-radius:10px; margin:8px 0; background:#fff; cursor:grab; user-select:none; }
     .deal:active { cursor:grabbing; }
     .deal .name { font-weight:600; }
     .deal .meta { color:var(--muted); font-size:12px; margin-top:4px; }
+    .deal .controls { display:flex; gap:6px; align-items:center; margin-top:8px; }
+    .deal .controls select { padding:6px 8px; border-radius:8px; border:1px solid var(--line); font-size:12px; }
 
     /* Right panel */
     .right { padding:0; display:flex; flex-direction:column; height: calc(100vh - 32px); position:sticky; top:16px; }
     .right-header { padding:12px 14px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
     .toolbar { padding:8px 12px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:8px; }
-    .status-form select { padding:8px 10px; border-radius:8px; border:1px solid var(--line); }
-    .right-body { display:grid; grid-template-columns: 1fr; height:100%; } /* plus de colonne liste contacts */
+    .right-body { display:grid; grid-template-columns: 240px 1fr; height:100%; }
+
+    /* Contacts (repliable – on le garde) */
+    .contacts { border-right:1px solid var(--line); overflow:auto; }
+    .contacts details { border-bottom:1px solid var(--line); }
+    .contacts summary { cursor:pointer; padding:10px 12px; font-weight:600; }
+    .contacts .group { padding:8px 12px; }
+    .contacts .c { padding:8px 10px; border-radius:8px; display:flex; align-items:center; justify-content:space-between; border:1px solid transparent; }
+    .contacts .c.active { background:#eef2ff; border-color:#e0e7ff; }
 
     /* Thread */
     .thread { display:flex; flex-direction:column; height:100%; }
@@ -69,7 +78,7 @@
       <div class="filter">
         <h3>Filtrer par profil</h3>
         <div>
-          <!-- supprimé l’option “Tous” -->
+          <!-- on garde sans “Tous” -->
           <a class="btn" href="/?profile=client">Clients</a>
           <a class="btn" href="/?profile=prospect">Prospects</a>
           <a class="btn" href="/?profile=fournisseur">Fournisseurs</a>
@@ -86,13 +95,22 @@
           <h4>{{ col.label }}</h4>
           <div class="dropzone" data-status="{{ col.id }}">
             {% for item in deals_by_status[col.id] %}
-              <!-- on met un data-open-href pour ouvrir le contact au clic -->
               <div class="deal" draggable="true" data-deal-id="{{ item.deal.id }}"
                    data-open-href="/?contact_id={{ item.contact.id }}&profile={{ current_profile }}">
                 <div class="name">{{ item.contact.name }}</div>
                 <div class="meta small muted">
                   {{ item.contact.phone }} • {{ item.deal.last_message_channel or '—' }} •
                   {{ item.deal.last_message_at.astimezone().strftime('%d/%m %H:%M') if item.deal.last_message_at else '—' }}
+                </div>
+
+                <!-- Sélecteur de statut par carte (fallback + rapide) -->
+                <div class="controls">
+                  <label class="small muted" for="st-{{ item.deal.id }}">Statut :</label>
+                  <select id="st-{{ item.deal.id }}" data-deal-id="{{ item.deal.id }}" class="deal-status">
+                    {% for c in columns %}
+                      <option value="{{ c.id }}" {% if item.deal.status==c.id %}selected{% endif %}>{{ c.label }}</option>
+                    {% endfor %}
+                  </select>
                 </div>
               </div>
             {% else %}
@@ -126,21 +144,26 @@
       </div>
 
       <div class="toolbar">
-        {% if selected %}
-        <form class="status-form" method="post" action="/deals/{{ selected.deal.id }}/status">
-          <input type="hidden" name="next" value="/?contact_id={{ selected.contact.id }}{% if current_profile %}&profile={{ current_profile }}{% endif %}">
-          <select name="status" onchange="this.form.submit()">
-            {% for val, label in status_options %}
-              <option value="{{ val }}" {% if selected.deal.status==val %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </form>
-        {% endif %}
+        <!-- SUPPRIMÉ : le sélecteur global d’étape -->
         <div class="muted small">Profil : <strong>{{ current_profile or '—' }}</strong></div>
       </div>
 
       <div class="right-body">
-        <!-- On a supprimé la colonne “liste contacts” de droite -->
+        <!-- Liste contacts (repliable) – conservée -->
+        <div class="contacts">
+          <details open>
+            <summary>Contacts ({{ contacts_list|length }})</summary>
+            <div class="group">
+              {% for c in contacts_list %}
+                <a class="c {% if selected and selected.contact.id==c.id %}active{% endif %}"
+                   href="/?contact_id={{ c.id }}{% if current_profile %}&profile={{ current_profile }}{% endif %}">
+                  <span>{{ c.name }}</span>
+                  <span class="muted small">{{ c.type }}</span>
+                </a>
+              {% endfor %}
+            </div>
+          </details>
+        </div>
 
         <!-- Fil de messages -->
         <div class="thread">
@@ -196,30 +219,29 @@
   </div>
 
   <script>
-    // --- Drag & Drop robuste + clic sur carte pour ouvrir ---
+    // ------- Interaction cartes : clic pour ouvrir la conversation -------
     (function() {
       let draggedEl = null;
       let didDrag = false;
 
-      // Clic sur carte (si pas de drag)
       document.addEventListener("click", (e) => {
         const card = e.target.closest(".deal[draggable='true']");
         if (!card) return;
+        // ne pas naviguer si clic sur le select statut
+        if (e.target && e.target.matches("select.deal-status")) return;
         if (didDrag) { didDrag = false; return; }
         const href = card.dataset.openHref;
         if (href) window.location.assign(href);
       });
 
-      // dragstart
+      // ------- Drag & Drop (reste activé, mais optionnel) -------
       document.addEventListener("dragstart", (e) => {
         const card = e.target.closest(".deal[draggable='true']");
         if (!card) return;
         draggedEl = card;
         didDrag = false;
-        // Certains navigateurs exigent une image/texte pour transporter quelque chose
         e.dataTransfer.setData("text/plain", card.dataset.dealId || "");
         e.dataTransfer.effectAllowed = "move";
-        // Optionnel: image fantôme plus légère
         const img = document.createElement("canvas");
         img.width = img.height = 1;
         e.dataTransfer.setDragImage(img, 0, 0);
@@ -234,73 +256,94 @@
         setTimeout(() => didDrag = false, 0);
       });
 
-      // Autoriser le drop UNIQUEMENT sur dropzone/col
-      function getZone(el) {
-        return el.closest(".dropzone, .col .dropzone");
-      }
-
-      document.addEventListener("dragenter", (e) => {
-        const zone = getZone(e.target);
-        if (!zone) return;
-        zone.classList.add("dragover");
-      });
+      function zone(el){ return el.closest(".dropzone"); }
 
       document.addEventListener("dragover", (e) => {
-        const zone = getZone(e.target);
-        if (!zone) return;
-        e.preventDefault(); // indispensable pour autoriser le drop
+        const z = zone(e.target);
+        if (!z) return;
+        e.preventDefault();
         e.dataTransfer.dropEffect = "move";
+        z.classList.add("dragover");
       });
 
       document.addEventListener("dragleave", (e) => {
-        const zone = getZone(e.target);
-        if (!zone) return;
-        zone.classList.remove("dragover");
+        const z = zone(e.target);
+        if (z) z.classList.remove("dragover");
       });
 
       document.addEventListener("drop", async (e) => {
-        const zone = getZone(e.target);
-        if (!zone) return;
+        const z = zone(e.target);
+        if (!z) return;
         e.preventDefault();
-        zone.classList.remove("dragover");
-
+        z.classList.remove("dragover");
         const dealId = (e.dataTransfer.getData("text/plain") || "").trim();
-        const newStatus = zone.dataset.status;
+        const newStatus = z.dataset.status;
         if (!dealId || !newStatus) return;
 
-        try {
-          const form = new FormData();
-          form.append("status", newStatus);
-
-          const resp = await fetch(`/deals/${dealId}/status`, {
-            method: "POST",
-            headers: {
-              "X-Requested-With": "XMLHttpRequest",
-              "Accept": "application/json"
-            },
-            body: form
-          });
-
-          let data = null;
-          try { data = await resp.json(); } catch(_) {}
-
-          if (resp.ok && data && data.ok) {
-            if (draggedEl && zone !== draggedEl.parentElement) {
-              zone.appendChild(draggedEl);
-              flash(draggedEl);
-            }
-          } else {
-            alert("Impossible de changer d'étape.");
-          }
-        } catch (err) {
-          alert("Erreur réseau : " + err);
+        const ok = await updateDealStatus(dealId, newStatus);
+        if (ok && draggedEl && z !== draggedEl.parentElement) {
+          z.appendChild(draggedEl);
+          setSelectedInCardSelect(draggedEl, newStatus);
+          flash(draggedEl);
         }
       });
 
-      function flash(el) {
-        el.style.outline = "2px solid #86efac";
-        setTimeout(() => { el.style.outline = "none"; }, 600);
+      function flash(el){ el.style.outline="2px solid #86efac"; setTimeout(()=>el.style.outline="none",600); }
+
+      async function updateDealStatus(dealId, newStatus) {
+        try {
+          const form = new FormData();
+          form.append("status", newStatus);
+          const resp = await fetch(`/deals/${dealId}/status`, {
+            method: "POST",
+            headers: {"X-Requested-With":"XMLHttpRequest","Accept":"application/json"},
+            body: form
+          });
+          const data = await resp.json().catch(()=>null);
+          return resp.ok && data && data.ok;
+        } catch(e){ alert("Erreur réseau : " + e); return false; }
       }
+
+      function setSelectedInCardSelect(cardEl, statusVal){
+        const sel = cardEl.querySelector("select.deal-status");
+        if (!sel) return;
+        [...sel.options].forEach(o=>{ o.selected = (o.value===statusVal); });
+      }
+
+      // ------- Fallback principal : menu déroulant sur chaque carte -------
+      document.addEventListener("change", async (e) => {
+        const sel = e.target;
+        if (!sel.matches("select.deal-status")) return;
+        const dealId = sel.getAttribute("data-deal-id");
+        const newStatus = sel.value;
+        if (!dealId || !newStatus) return;
+
+        const ok = await updateDealStatus(dealId, newStatus);
+        if (!ok) {
+          // rollback visuel
+          const current = (sel.getAttribute("data-current") || "");
+          if (current) sel.value = current;
+          alert("Impossible de changer le statut.");
+          return;
+        }
+
+        // déplacer la carte dans la bonne colonne
+        const card = sel.closest(".deal");
+        const dz = document.querySelector(`.dropzone[data-status="${newStatus}"]`);
+        if (card && dz && dz !== card.parentElement) {
+          dz.appendChild(card);
+          flash(card);
+        }
+        // mémoriser le nouveau courant
+        sel.setAttribute("data-current", newStatus);
+      });
+
+      // Init data-current pour tous les selects
+      window.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll("select.deal-status").forEach((s)=>{
+          s.setAttribute("data-current", s.value);
+        });
+      });
     })();
   </script>
 </body>
