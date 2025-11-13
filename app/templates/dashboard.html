@@ -74,26 +74,50 @@
         {% endif %}
       </div>
 
+      <!-- Toolbar SANS menu déroulant de statut -->
       <div class="toolbar">
-        {% if selected %}
-          <form class="status-form" method="post" action="/deals/{{ selected.deal.id }}/status">
-            <input type="hidden" name="next" value="/?contact_id={{ selected.contact.id }}{% if current_profile %}&profile={{ current_profile }}{% endif %}">
-            <select name="status" onchange="this.form.submit()">
-              {% for val, label in status_options %}
-                <option value="{{ val }}" {% if selected.deal.status==val %}selected{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
-          </form>
-        {% endif %}
         <div class="muted small">Profil : <strong>{{ current_profile or '—' }}</strong></div>
+        <div class="muted small">
+          {{ total_deals or 0 }} affaires • {{ total_contacts or 0 }} contacts
+        </div>
       </div>
 
       <div class="right-body">
+        <!-- === PANE : TOUS LES CONTACTS (pliant) === -->
+        <div class="contacts-pane">
+          <div class="section">
+            <strong>Tous les contacts</strong>
+            <div class="hint">Clique pour ouvrir le fil WhatsApp</div>
+          </div>
+
+          {% set contact_list = all_contacts or contacts or [] %}
+          <details open>
+            <summary>Liste ({{ contact_list|length }})</summary>
+            <div class="search">
+              <input id="contactSearch" type="text" placeholder="Rechercher… (nom, tel, email)">
+            </div>
+            <div id="contactsList" class="contacts-list">
+              {% for c in contact_list %}
+                <a class="contact-item {% if selected and selected.contact.id==c.id %}active{% endif %}"
+                   href="/?contact_id={{ c.id }}{% if current_profile %}&profile={{ current_profile }}{% endif %}">
+                  <div style="font-weight:600">{{ c.name }}</div>
+                  <div class="contact-meta">
+                    {{ c.type or '—' }} • {{ c.phone or '—' }} {% if c.email %}• {{ c.email }}{% endif %}
+                  </div>
+                </a>
+              {% else %}
+                <div class="muted small" style="padding:8px 12px;">Aucun contact</div>
+              {% endfor %}
+            </div>
+          </details>
+        </div>
+
+        <!-- === PANE : THREAD WHATSAPP === -->
         <div class="thread">
           <div class="messages">
-            {% if messages_next_cursor %}
+            {% if messages_next_cursor and selected %}
               <form method="get" style="margin-bottom:8px;">
-                <input type="hidden" name="contact_id" value="{{ selected.contact.id if selected }}">
+                <input type="hidden" name="contact_id" value="{{ selected.contact.id }}">
                 <input type="hidden" name="msgs_before" value="{{ messages_next_cursor }}">
                 <input type="hidden" name="msgs_limit" value="{{ messages_limit }}">
                 {% if current_profile %}<input type="hidden" name="profile" value="{{ current_profile }}">{% endif %}
@@ -137,7 +161,7 @@
   </div>
 
   <script>
-    // Drag & Drop + clic carte
+    // Drag & Drop + clic carte (inchangé)
     (function() {
       let draggedEl = null, didDrag = false;
 
@@ -183,6 +207,20 @@
         }catch(err){ alert("Erreur réseau : "+err); }
       });
       function flash(el){ el.style.outline="2px solid #86efac"; setTimeout(()=>{ el.style.outline="none"; },600); }
+    })();
+
+    // Filtre “Tous les contacts” (recherche locale)
+    (function(){
+      const input = document.getElementById('contactSearch');
+      const list  = document.getElementById('contactsList');
+      if(!input || !list) return;
+      input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        for(const a of list.querySelectorAll('.contact-item')){
+          const txt = a.textContent.toLowerCase();
+          a.style.display = txt.includes(q) ? '' : 'none';
+        }
+      });
     })();
   </script>
 </body>
