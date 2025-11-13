@@ -2,80 +2,92 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <title>{% if contact %}Modifier{% else %}Nouveau{% endif %} contact • CRM WhatsApp</title>
+  <title>{% if mode == 'edit' %}Modifier le contact{% else %}Nouveau contact{% endif %} - CRM WhatsApp</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <div class="container" style="grid-template-columns:240px 1fr;">
+  <div class="container single-page">
     <aside class="card sidebar">
       <h3>Navigation</h3>
       <nav class="sidebar-nav">
         <a href="/"><span>Pipeline WhatsApp</span></a>
-        <a href="/contacts"><span>Contacts</span></a>
-        <a class="active" href="/contacts/new"><span>+ Nouveau contact</span></a>
+        <a class="active" href="/contacts"><span>Contacts</span></a>
+        <a href="/contacts/new"><span>+ Nouveau contact</span></a>
       </nav>
     </aside>
 
-    <main class="card" style="padding:16px;">
-      <h2 style="margin:0 0 10px 0;">{% if contact %}Modifier{% else %}Nouveau{% endif %} contact</h2>
-      <form method="post" action="{{ action }}" style="display:grid; grid-template-columns:repeat(2,minmax(220px,1fr)); gap:12px;">
-        <div>
-          <label>Nom</label>
-          <input type="text" name="name" value="{{ contact.name if contact else '' }}" required>
+    <main class="card main">
+      <h2 style="margin-bottom: 12px;">
+        {% if mode == 'edit' %}Modifier le contact{% else %}Nouveau contact{% endif %}
+      </h2>
+
+      {% if error %}
+        <div class="alert alert-error" style="margin-bottom: 12px;">
+          {{ error }}
         </div>
-        <div>
-          <label>Type</label>
-          <select name="type">
-            <option value="">—</option>
-            <option value="client" {% if contact and contact.type=='client' %}selected{% endif %}>Client</option>
-            <option value="prospect" {% if contact and contact.type=='prospect' %}selected{% endif %}>Prospect</option>
-            <option value="fournisseur" {% if contact and contact.type=='fournisseur' %}selected{% endif %}>Fournisseur</option>
-            <option value="autre" {% if contact and contact.type=='autre' %}selected{% endif %}>Autre</option>
-          </select>
-        </div>
-        <div>
-          <label>Téléphone</label>
-          <input type="tel" name="phone" value="{{ contact.phone if contact else '' }}">
-        </div>
-        <div>
-          <label>Email</label>
-          <input type="email" name="email" value="{{ contact.email if contact else '' }}">
-        </div>
-        <div>
-          <label>Entreprise</label>
-          <input type="text" name="company" value="{{ contact.company if contact else '' }}">
-        </div>
-        <div>
-          <label>Adresse</label>
-          <input type="text" name="address" value="{{ contact.address if contact else '' }}">
-        </div>
-        <div style="grid-column:1 / -1;">
-          <label>Tags</label>
-          <input type="text" name="tags" value="{{ contact.tags if contact else '' }}" placeholder="ex: urgent, VIP, plomberie">
-          <div class="hint">Séparez par des virgules.</div>
+      {% endif %}
+
+      <form method="post" action="/contacts/new" class="form-grid">
+        <div class="form-field">
+          <label for="name">Nom du contact</label>
+          <input id="name" name="name" type="text"
+                 value="{{ name or '' }}" required>
         </div>
 
-        <div style="grid-column:1 / -1; display:flex; gap:8px; margin-top:6px;">
-          <button class="btn btn-primary" type="submit">{% if contact %}Mettre à jour{% else %}Créer le contact{% endif %}</button>
-          <a class="btn" href="/contacts">Annuler</a>
+        <div class="form-field">
+          <label for="phone">Téléphone WhatsApp <span style="color:#dc2626">*</span></label>
+          <input id="phone" name="phone" type="tel"
+                 placeholder="ex : +33 6 12 34 56 78"
+                 value="{{ phone or '' }}" required>
+          <div class="hint small muted">
+            Ce numéro est obligatoire pour envoyer des messages WhatsApp.
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email"
+                 value="{{ email or '' }}">
+        </div>
+
+        <div class="form-field">
+          <label for="type">Profil</label>
+          <select id="type" name="type">
+            <option value="client" {% if type == 'client' %}selected{% endif %}>Client</option>
+            <option value="prospect" {% if type == 'prospect' %}selected{% endif %}>Prospect</option>
+            <option value="fournisseur" {% if type == 'fournisseur' %}selected{% endif %}>Fournisseur</option>
+            <option value="autre" {% if type == 'autre' %}selected{% endif %}>Autre</option>
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label for="company">Entreprise</label>
+          <input id="company" name="company" type="text"
+                 value="{{ company or '' }}">
+        </div>
+
+        <div class="form-field">
+          <label for="address">Adresse</label>
+          <input id="address" name="address" type="text"
+                 value="{{ address or '' }}">
+        </div>
+
+        <div class="form-field" style="grid-column:1 / -1;">
+          <label for="tags">Tags (mots-clés)</label>
+          <input id="tags" name="tags" type="text"
+                 placeholder="ex : VIP, devis en cours, relance"
+                 value="{{ tags or '' }}">
+        </div>
+
+        <div class="form-actions" style="grid-column:1 / -1; display:flex; gap:8px; margin-top:16px;">
+          <button class="btn btn-primary" type="submit">
+            {% if mode == 'edit' %}Mettre à jour{% else %}Créer le contact{% endif %}
+          </button>
+          <a href="/contacts" class="btn btn-ghost">Annuler</a>
         </div>
       </form>
     </main>
   </div>
-
-  <script>
-    // Ajustement responsive du formulaire (passe en 1 colonne sur petit écran)
-    (function(){
-      const mq = window.matchMedia("(max-width: 680px)");
-      const form = document.querySelector("form");
-      function apply(){
-        if(!form) return;
-        form.style.gridTemplateColumns = mq.matches ? "1fr" : "repeat(2,minmax(220px,1fr))";
-      }
-      mq.addEventListener?.("change", apply);
-      apply();
-    })();
-  </script>
 </body>
 </html>
