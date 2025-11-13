@@ -1,69 +1,81 @@
-{% extends "base.html" %}
-{% block title %}{{ 'Nouveau contact' if mode=='new' else 'Modifier contact' }} - CRM{% endblock %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>{% if contact %}Modifier{% else %}Nouveau{% endif %} contact • CRM WhatsApp</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container" style="grid-template-columns:240px 1fr;">
+    <aside class="card sidebar">
+      <h3>Navigation</h3>
+      <nav class="sidebar-nav">
+        <a href="/"><span>Pipeline WhatsApp</span></a>
+        <a href="/contacts"><span>Contacts</span></a>
+        <a class="active" href="/contacts/new"><span>+ Nouveau contact</span></a>
+      </nav>
+    </aside>
 
-{% block content %}
-<main class="main-content">
-  <section class="panel">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <div>
-        <div style="font-size:16px;font-weight:600;">
-          {{ 'Créer un nouveau contact' if mode=='new' else 'Modifier le contact' }}
+    <main class="card" style="padding:16px;">
+      <h2 style="margin:0 0 10px 0;">{% if contact %}Modifier{% else %}Nouveau{% endif %} contact</h2>
+      <form method="post" action="{{ action }}" style="display:grid; grid-template-columns:repeat(2,minmax(220px,1fr)); gap:12px;">
+        <div>
+          <label>Nom</label>
+          <input type="text" name="name" value="{{ contact.name if contact else '' }}" required>
         </div>
-        <div style="font-size:12px;color:var(--text-soft);">
-          {{ 'Saisissez les informations du contact.' if mode=='new' else 'Mettez à jour les informations du contact.' }}
+        <div>
+          <label>Type</label>
+          <select name="type">
+            <option value="">—</option>
+            <option value="client" {% if contact and contact.type=='client' %}selected{% endif %}>Client</option>
+            <option value="prospect" {% if contact and contact.type=='prospect' %}selected{% endif %}>Prospect</option>
+            <option value="fournisseur" {% if contact and contact.type=='fournisseur' %}selected{% endif %}>Fournisseur</option>
+            <option value="autre" {% if contact and contact.type=='autre' %}selected{% endif %}>Autre</option>
+          </select>
         </div>
-      </div>
-      {% if mode=='new' %}
-        <a class="btn" href="/contacts">Annuler</a>
-      {% else %}
-        <a class="btn" href="/contacts">Retour</a>
-      {% endif %}
-    </div>
+        <div>
+          <label>Téléphone</label>
+          <input type="tel" name="phone" value="{{ contact.phone if contact else '' }}">
+        </div>
+        <div>
+          <label>Email</label>
+          <input type="email" name="email" value="{{ contact.email if contact else '' }}">
+        </div>
+        <div>
+          <label>Entreprise</label>
+          <input type="text" name="company" value="{{ contact.company if contact else '' }}">
+        </div>
+        <div>
+          <label>Adresse</label>
+          <input type="text" name="address" value="{{ contact.address if contact else '' }}">
+        </div>
+        <div style="grid-column:1 / -1;">
+          <label>Tags</label>
+          <input type="text" name="tags" value="{{ contact.tags if contact else '' }}" placeholder="ex: urgent, VIP, plomberie">
+          <div class="hint">Séparez par des virgules.</div>
+        </div>
 
-    <form method="post" action="{{ '/contacts/new' if mode=='new' else '/contacts/' ~ contact.id ~ '/edit' }}" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
-      <div>
-        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Type</label>
-        <select name="type" class="chat-input" required>
-          {% for t in contact_types %}
-            <option value="{{ t }}" {% if contact and contact.type==t %}selected{% endif %}>{{ t|capitalize }}</option>
-          {% endfor %}
-        </select>
-      </div>
+        <div style="grid-column:1 / -1; display:flex; gap:8px; margin-top:6px;">
+          <button class="btn btn-primary" type="submit">{% if contact %}Mettre à jour{% else %}Créer le contact{% endif %}</button>
+          <a class="btn" href="/contacts">Annuler</a>
+        </div>
+      </form>
+    </main>
+  </div>
 
-      <div>
-        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Nom</label>
-        <input name="name" class="chat-input" required value="{{ contact.name if contact else '' }}">
-      </div>
-
-      <div>
-        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Téléphone</label>
-        <input name="phone" class="chat-input" required value="{{ contact.phone if contact else '' }}">
-      </div>
-
-      <div>
-        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Email</label>
-        <input name="email" class="chat-input" value="{{ contact.email if contact else '' }}">
-      </div>
-
-      <div>
-        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Société</label>
-        <input name="company" class="chat-input" value="{{ contact.company if contact else '' }}">
-      </div>
-
-      <div>
-        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Adresse</label>
-        <input name="address" class="chat-input" value="{{ contact.address if contact else '' }}">
-      </div>
-
-      <div style="grid-column:1/-1;">
-        <label style="display:block;font-size:12px;color:var(--text-soft);margin-bottom:4px;">Tags (séparés par des virgules)</label>
-        <input name="tags" class="chat-input" value="{{ contact.tags if contact else '' }}" placeholder="Urgent, Rappel, Chauffage">
-      </div>
-
-      <div style="grid-column:1/-1;text-align:right;margin-top:6px;">
-        <button class="btn btn-primary">{{ 'Créer le contact' if mode=='new' else 'Enregistrer' }}</button>
-      </div>
-    </form>
-  </section>
-</main>
-{% endblock %}
+  <script>
+    // Ajustement responsive du formulaire (passe en 1 colonne sur petit écran)
+    (function(){
+      const mq = window.matchMedia("(max-width: 680px)");
+      const form = document.querySelector("form");
+      function apply(){
+        if(!form) return;
+        form.style.gridTemplateColumns = mq.matches ? "1fr" : "repeat(2,minmax(220px,1fr))";
+      }
+      mq.addEventListener?.("change", apply);
+      apply();
+    })();
+  </script>
+</body>
+</html>
