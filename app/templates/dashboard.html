@@ -74,7 +74,7 @@
         {% endif %}
       </div>
 
-      <!-- Toolbar SANS menu déroulant -->
+      <!-- Toolbar (sans menu déroulant de statut) -->
       <div class="toolbar">
         <div class="muted small">Profil : <strong>{{ current_profile or '—' }}</strong></div>
         <div class="muted small">
@@ -83,22 +83,17 @@
       </div>
 
       <div class="right-body">
-        <!-- === PANE : TOUS LES CONTACTS (dépliant, ouvert par défaut, liste complète) === -->
+        <!-- === PANE : MENU PLIANT TOUS LES CONTACTS (sans recherche) === -->
         <div class="contacts-pane">
           <div class="section">
             <strong>Tous les contacts</strong>
-            <div class="hint">Recherche locale et clic pour ouvrir</div>
+            <div class="hint">Clique sur un contact pour ouvrir le fil WhatsApp</div>
           </div>
 
-          {# On affiche TOUJOURS la liste complète.
-             On prend all_contacts si fourni, sinon contacts_all, sinon contacts, sinon []. #}
-          {% set contact_list = (all_contacts if all_contacts is defined else (contacts_all if contacts_all is defined else (contacts if contacts is defined else []))) %}
+          {% set contact_list = contacts or [] %}
 
           <details open>
-            <summary>Liste ({{ contact_list|length }})</summary>
-            <div class="search">
-              <input id="contactSearch" type="text" placeholder="Rechercher… (nom, tel, email)">
-            </div>
+            <summary>▼ Tous les contacts ({{ contact_list|length }})</summary>
             <div id="contactsList" class="contacts-list">
               {% for c in contact_list %}
                 <a class="contact-item {% if selected and selected.contact.id==c.id %}active{% endif %}"
@@ -164,7 +159,7 @@
   </div>
 
   <script>
-    // Drag & Drop + clic carte
+    // Drag & Drop + clic carte (inchangé)
     (function() {
       let draggedEl = null, didDrag = false;
 
@@ -210,20 +205,6 @@
         }catch(err){ alert("Erreur réseau : "+err); }
       });
       function flash(el){ el.style.outline="2px solid #86efac"; setTimeout(()=>{ el.style.outline="none"; },600); }
-    })();
-
-    // Recherche locale dans “Tous les contacts”
-    (function(){
-      const input = document.getElementById('contactSearch');
-      const list  = document.getElementById('contactsList');
-      if(!input || !list) return;
-      input.addEventListener('input', () => {
-        const q = input.value.trim().toLowerCase();
-        for(const a of list.querySelectorAll('.contact-item')){
-          const txt = a.textContent.toLowerCase();
-          a.style.display = txt.includes(q) ? '' : 'none';
-        }
-      });
     })();
   </script>
 </body>
