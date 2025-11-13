@@ -5,7 +5,7 @@
   <title>CRM WhatsApp Artisans</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root { --bg:#f7f7fb; --card:#fff; --muted:#6b7280; --text:#111827; --line:#e5e7eb; --brand:#0f172a; --ok:#16a34a; --warn:#d97706; }
+    :root { --bg:#f7f7fb; --card:#fff; --muted:#6b7280; --text:#111827; --line:#e5e7eb; --brand:#0f172a; }
     html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial; }
     a { color:inherit; text-decoration:none; }
     .layout { display:grid; grid-template-columns: 240px 1fr 420px; gap:16px; padding:16px; }
@@ -23,15 +23,14 @@
 
     /* Kanban */
     .kanban { display:grid; grid-template-columns: repeat(4, minmax(220px,1fr)); gap:12px; }
-    .col { padding:8px; min-height: 80px; }
+    .col { padding:8px; min-height:80px; }
     .col h4 { margin:6px 6px 10px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
-    .dropzone { min-height: 40px; padding: 4px; border-radius:10px; transition: background .15s, outline-color .15s; }
-    .dropzone.dragover { background:#f1f5ff; outline:2px dashed #c7d2fe; }
+    .dropzone { min-height: 40px; padding: 4px; border-radius:10px; transition: background .15s, outline-color .15s; outline:2px dashed transparent; }
+    .dropzone.dragover { background:#f1f5ff; outline-color:#c7d2fe; }
     .deal { padding:10px; border:1px solid var(--line); border-radius:10px; margin:8px 0; background:#fff; cursor:grab; }
     .deal:active { cursor:grabbing; }
     .deal .name { font-weight:600; }
     .deal .meta { color:var(--muted); font-size:12px; margin-top:4px; }
-    .deal .row-actions { margin-top:8px; display:flex; gap:6px; }
 
     /* Right panel */
     .right { padding:0; display:flex; flex-direction:column; height: calc(100vh - 32px); position:sticky; top:16px; }
@@ -61,7 +60,6 @@
     .composer { padding:12px; display:flex; gap:8px; }
     .composer textarea { flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--line); resize:vertical; min-height:44px; }
 
-    /* Empty states */
     .empty { display:flex; align-items:center; justify-content:center; padding:24px; border:1px dashed var(--line); border-radius:12px; background:#fff; }
   </style>
 </head>
@@ -79,7 +77,7 @@
       <div class="filter">
         <h3>Filtrer par profil</h3>
         <div>
-          <a class="btn" href="/">Tous</a>
+          <!-- supprimé: option "Tous" -->
           <a class="btn" href="/?profile=client">Clients</a>
           <a class="btn" href="/?profile=prospect">Prospects</a>
           <a class="btn" href="/?profile=fournisseur">Fournisseurs</a>
@@ -90,7 +88,7 @@
 
     <!-- Kanban (visible uniquement si un profil est choisi) -->
     <section class="kanban">
-      {% if current_profile and current_profile != 'tous' %}
+      {% if current_profile and current_profile in ['client','prospect','fournisseur','autre'] %}
         {% for col in columns %}
         <div class="card col" data-status="{{ col.id }}">
           <h4>{{ col.label }}</h4>
@@ -102,9 +100,7 @@
                   {{ item.contact.phone }} • {{ item.deal.last_message_channel or '—' }} •
                   {{ item.deal.last_message_at.astimezone().strftime('%d/%m %H:%M') if item.deal.last_message_at else '—' }}
                 </div>
-                <div class="row-actions">
-                  <a class="btn" href="/?contact_id={{ item.contact.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">Ouvrir</a>
-                </div>
+                <!-- supprimé: bouton "Ouvrir" -->
               </div>
             {% else %}
               <div class="muted small" style="padding:6px 8px;">Aucune affaire</div>
@@ -139,7 +135,7 @@
       <div class="toolbar">
         {% if selected %}
         <form class="status-form" method="post" action="/deals/{{ selected.deal.id }}/status">
-          <input type="hidden" name="next" value="/?contact_id={{ selected.contact.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
+          <input type="hidden" name="next" value="/?contact_id={{ selected.contact.id }}{% if current_profile %}&profile={{ current_profile }}{% endif %}">
           <select name="status" onchange="this.form.submit()">
             {% for val, label in status_options %}
               <option value="{{ val }}" {% if selected.deal.status==val %}selected{% endif %}>{{ label }}</option>
@@ -147,7 +143,7 @@
           </select>
         </form>
         {% endif %}
-        <div class="muted small">Profil : <strong>{{ current_profile }}</strong></div>
+        <div class="muted small">Profil : <strong>{{ current_profile or '—' }}</strong></div>
       </div>
 
       <div class="right-body">
@@ -158,7 +154,7 @@
             <div class="group">
               {% for c in contacts_list %}
                 <a class="c {% if selected and selected.contact.id==c.id %}active{% endif %}"
-                   href="/?contact_id={{ c.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
+                   href="/?contact_id={{ c.id }}{% if current_profile %}&profile={{ current_profile }}{% endif %}">
                   <span>{{ c.name }}</span>
                   <span class="muted small">{{ c.type }}</span>
                 </a>
@@ -175,7 +171,7 @@
                 <input type="hidden" name="contact_id" value="{{ selected.contact.id if selected }}">
                 <input type="hidden" name="msgs_before" value="{{ messages_next_cursor }}">
                 <input type="hidden" name="msgs_limit" value="{{ messages_limit }}">
-                {% if current_profile and current_profile != 'tous' %}
+                {% if current_profile %}
                   <input type="hidden" name="profile" value="{{ current_profile }}">
                 {% endif %}
                 <button class="btn btn-ghost" style="width:100%;">Afficher plus d’historique</button>
@@ -221,69 +217,80 @@
   </div>
 
   <script>
-    // --- Drag & Drop Kanban ---
+    // --- Drag & Drop Kanban robuste (event delegation) ---
     (function() {
-      if (!("draggable" in document.createElement("span"))) return;
+      let draggedEl = null;
 
-      let dragged = null;
-
-      document.querySelectorAll(".deal[draggable='true']").forEach(card => {
-        card.addEventListener("dragstart", (e) => {
-          dragged = card;
-          e.dataTransfer.setData("text/plain", card.dataset.dealId);
-          e.dataTransfer.effectAllowed = "move";
-        });
-        card.addEventListener("dragend", () => {
-          dragged = null;
-        });
+      // Délégation dragstart/dragend pour toutes les cartes existantes et futures
+      document.addEventListener("dragstart", (e) => {
+        const card = e.target.closest(".deal[draggable='true']");
+        if (!card) return;
+        draggedEl = card;
+        e.dataTransfer.setData("text/plain", card.dataset.dealId || "");
+        e.dataTransfer.effectAllowed = "move";
       });
 
-      document.querySelectorAll(".dropzone").forEach(zone => {
-        zone.addEventListener("dragover", (e) => {
-          e.preventDefault();
-          zone.classList.add("dragover");
-          e.dataTransfer.dropEffect = "move";
-        });
-        zone.addEventListener("dragleave", () => {
-          zone.classList.remove("dragover");
-        });
-        zone.addEventListener("drop", async (e) => {
-          e.preventDefault();
-          zone.classList.remove("dragover");
-          const dealId = (e.dataTransfer.getData("text/plain") || "").trim();
-          const newStatus = zone.dataset.status;
-          if (!dealId || !newStatus) return;
+      document.addEventListener("dragend", () => {
+        draggedEl = null;
+      });
 
-          try {
-            const form = new FormData();
-            form.append("status", newStatus);
-            // On indique AJAX pour que l'endpoint renvoie JSON
-            const resp = await fetch(`/deals/${dealId}/status`, {
-              method: "POST",
-              headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
-              body: form
-            });
-            const data = await resp.json();
+      // Autoriser le drop uniquement sur les .dropzone
+      document.addEventListener("dragover", (e) => {
+        const zone = e.target.closest(".dropzone");
+        if (!zone) return;
+        e.preventDefault(); // indispensable pour autoriser drop
+        e.dataTransfer.dropEffect = "move";
+        zone.classList.add("dragover");
+      });
 
-            if (resp.ok && data && data.ok) {
-              // On déplace la carte dans la colonne visuellement
-              if (dragged && zone.contains(dragged) === false) {
-                zone.appendChild(dragged);
-                flashed(dragged);
-              }
-            } else {
-              alert("Impossible de changer d'étape : " + (data && (data.error || data.detail) || resp.status));
+      document.addEventListener("dragleave", (e) => {
+        const zone = e.target.closest(".dropzone");
+        if (zone) zone.classList.remove("dragover");
+      });
+
+      document.addEventListener("drop", async (e) => {
+        const zone = e.target.closest(".dropzone");
+        if (!zone) return;
+        e.preventDefault();
+        zone.classList.remove("dragover");
+
+        const dealId = (e.dataTransfer.getData("text/plain") || "").trim();
+        const newStatus = zone.dataset.status;
+        if (!dealId || !newStatus) return;
+
+        try {
+          const form = new FormData();
+          form.append("status", newStatus);
+
+          const resp = await fetch(`/deals/${dealId}/status`, {
+            method: "POST",
+            headers: {
+              "X-Requested-With": "XMLHttpRequest",
+              "Accept": "application/json"
+            },
+            body: form
+          });
+
+          let data = null;
+          try { data = await resp.json(); } catch(_) {}
+
+          if (resp.ok && data && data.ok) {
+            // Déplacement visuel si la carte existe encore dans le DOM
+            if (draggedEl && zone !== draggedEl.parentElement) {
+              zone.appendChild(draggedEl);
+              flash(draggedEl);
             }
-          } catch (err) {
-            alert("Erreur réseau : " + err);
+          } else {
+            alert("Impossible de changer d'étape.");
           }
-        });
+        } catch (err) {
+          alert("Erreur réseau : " + err);
+        }
       });
 
-      function flashed(el) {
+      function flash(el) {
         el.style.outline = "2px solid #86efac";
-        el.style.transition = "outline-color .6s ease";
-        setTimeout(() => { el.style.outlineColor = "transparent"; }, 600);
+        setTimeout(() => { el.style.outline = "none"; }, 600);
       }
     })();
   </script>
