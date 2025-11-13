@@ -4,68 +4,10 @@
   <meta charset="utf-8" />
   <title>CRM WhatsApp Artisans</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root { --bg:#f7f7fb; --card:#fff; --muted:#6b7280; --text:#111827; --line:#e5e7eb; --brand:#0f172a; }
-    html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial; }
-    a { color:inherit; text-decoration:none; }
-    .layout { display:grid; grid-template-columns: 240px 1fr 420px; gap:16px; padding:16px; }
-    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; }
-    .sidebar { padding:12px; position:sticky; top:16px; height: calc(100vh - 32px); overflow:auto; }
-    .sidebar h3 { margin:6px 0 12px; font-size:14px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
-    .sidebar-nav a { display:block; padding:10px 12px; border-radius:10px; margin-bottom:6px; border:1px solid transparent; }
-    .sidebar-nav a.active { background:#eef2ff; border-color:#e0e7ff; }
-    .sidebar .filter { margin-top:14px; }
-    .btn { display:inline-block; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#fff; cursor:pointer; }
-    .btn-ghost { background:#fff; border:1px dashed var(--line); }
-    .btn-primary { background:var(--brand); color:#fff; border-color:var(--brand); }
-    .muted { color:var(--muted); }
-    .small { font-size:12px; }
-
-    /* Kanban */
-    .kanban { display:grid; grid-template-columns: repeat(4, minmax(220px,1fr)); gap:12px; }
-    .col { padding:8px; min-height:80px; }
-    .col h4 { margin:6px 6px 10px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
-    .dropzone { min-height: 40px; padding: 4px; border-radius:10px; transition: background .15s, outline-color .15s; outline:2px dashed transparent; }
-    .dropzone.dragover { background:#f1f5ff; outline-color:#c7d2fe; }
-    .deal { padding:10px; border:1px solid var(--line); border-radius:10px; margin:8px 0; background:#fff; cursor:grab; user-select:none; }
-    .deal:active { cursor:grabbing; }
-    .deal .name { font-weight:600; }
-    .deal .meta { color:var(--muted); font-size:12px; margin-top:4px; }
-    .deal .controls { display:flex; gap:6px; align-items:center; margin-top:8px; }
-    .deal .controls select { padding:6px 8px; border-radius:8px; border:1px solid var(--line); font-size:12px; }
-
-    /* Right panel */
-    .right { padding:0; display:flex; flex-direction:column; height: calc(100vh - 32px); position:sticky; top:16px; }
-    .right-header { padding:12px 14px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
-    .toolbar { padding:8px 12px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:8px; }
-    .right-body { display:grid; grid-template-columns: 240px 1fr; height:100%; }
-
-    /* Contacts (repliable – on le garde) */
-    .contacts { border-right:1px solid var(--line); overflow:auto; }
-    .contacts details { border-bottom:1px solid var(--line); }
-    .contacts summary { cursor:pointer; padding:10px 12px; font-weight:600; }
-    .contacts .group { padding:8px 12px; }
-    .contacts .c { padding:8px 10px; border-radius:8px; display:flex; align-items:center; justify-content:space-between; border:1px solid transparent; }
-    .contacts .c.active { background:#eef2ff; border-color:#e0e7ff; }
-
-    /* Thread */
-    .thread { display:flex; flex-direction:column; height:100%; }
-    .messages { padding:12px 14px; overflow:auto; flex:1; background:#fafafa; border-bottom:1px solid var(--line); }
-    .msg-divider { text-align:center; color:var(--muted); font-size:12px; margin:8px 0; }
-    .msg { display:flex; margin:6px 0; }
-    .msg.in { justify-content:flex-start; }
-    .msg.out { justify-content:flex-end; }
-    .bubble { max-width:70%; border:1px solid var(--line); background:#fff; padding:10px 12px; border-radius:12px; position:relative; }
-    .msg.out .bubble { background:#f1f5ff; }
-    .bubble .meta { display:block; color:var(--muted); font-size:11px; margin-top:6px; text-align:right; }
-    .composer { padding:12px; display:flex; gap:8px; }
-    .composer textarea { flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--line); resize:vertical; min-height:44px; }
-
-    .empty { display:flex; align-items:center; justify-content:center; padding:24px; border:1px dashed var(--line); border-radius:12px; background:#fff; }
-  </style>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <div class="layout">
+  <div class="container">
     <!-- Sidebar -->
     <aside class="card sidebar">
       <h3>Navigation</h3>
@@ -77,8 +19,7 @@
 
       <div class="filter">
         <h3>Filtrer par profil</h3>
-        <div>
-          <!-- on garde sans “Tous” -->
+        <div style="display:flex; flex-wrap:wrap; gap:8px">
           <a class="btn" href="/?profile=client">Clients</a>
           <a class="btn" href="/?profile=prospect">Prospects</a>
           <a class="btn" href="/?profile=fournisseur">Fournisseurs</a>
@@ -87,7 +28,7 @@
       </div>
     </aside>
 
-    <!-- Kanban (visible uniquement si un profil est choisi) -->
+    <!-- Kanban (uniquement si profil choisi) -->
     <section class="kanban">
       {% if current_profile and current_profile in ['client','prospect','fournisseur','autre'] %}
         {% for col in columns %}
@@ -102,16 +43,6 @@
                   {{ item.contact.phone }} • {{ item.deal.last_message_channel or '—' }} •
                   {{ item.deal.last_message_at.astimezone().strftime('%d/%m %H:%M') if item.deal.last_message_at else '—' }}
                 </div>
-
-                <!-- Sélecteur de statut par carte (fallback + rapide) -->
-                <div class="controls">
-                  <label class="small muted" for="st-{{ item.deal.id }}">Statut :</label>
-                  <select id="st-{{ item.deal.id }}" data-deal-id="{{ item.deal.id }}" class="deal-status">
-                    {% for c in columns %}
-                      <option value="{{ c.id }}" {% if item.deal.status==c.id %}selected{% endif %}>{{ c.label }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
               </div>
             {% else %}
               <div class="muted small" style="padding:6px 8px;">Aucune affaire</div>
@@ -120,7 +51,7 @@
         </div>
         {% endfor %}
       {% else %}
-        <div class="card" style="grid-column: 1 / -1;">
+        <div class="card" style="grid-column:1 / -1;">
           <div class="empty">
             <div>
               <div style="font-weight:700; margin-bottom:6px;">Choisissez un profil pour afficher le Kanban</div>
@@ -139,33 +70,25 @@
           <div class="muted">•</div>
           <div class="muted small">{{ selected.contact.phone }}</div>
         {% else %}
-          <div class="muted">Sélectionnez un contact (clic sur une carte)</div>
+          <div class="muted">Clique une carte du kanban pour ouvrir le fil WhatsApp</div>
         {% endif %}
       </div>
 
       <div class="toolbar">
-        <!-- SUPPRIMÉ : le sélecteur global d’étape -->
+        {% if selected %}
+          <form class="status-form" method="post" action="/deals/{{ selected.deal.id }}/status">
+            <input type="hidden" name="next" value="/?contact_id={{ selected.contact.id }}{% if current_profile %}&profile={{ current_profile }}{% endif %}">
+            <select name="status" onchange="this.form.submit()">
+              {% for val, label in status_options %}
+                <option value="{{ val }}" {% if selected.deal.status==val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </form>
+        {% endif %}
         <div class="muted small">Profil : <strong>{{ current_profile or '—' }}</strong></div>
       </div>
 
       <div class="right-body">
-        <!-- Liste contacts (repliable) – conservée -->
-        <div class="contacts">
-          <details open>
-            <summary>Contacts ({{ contacts_list|length }})</summary>
-            <div class="group">
-              {% for c in contacts_list %}
-                <a class="c {% if selected and selected.contact.id==c.id %}active{% endif %}"
-                   href="/?contact_id={{ c.id }}{% if current_profile %}&profile={{ current_profile }}{% endif %}">
-                  <span>{{ c.name }}</span>
-                  <span class="muted small">{{ c.type }}</span>
-                </a>
-              {% endfor %}
-            </div>
-          </details>
-        </div>
-
-        <!-- Fil de messages -->
         <div class="thread">
           <div class="messages">
             {% if messages_next_cursor %}
@@ -173,10 +96,8 @@
                 <input type="hidden" name="contact_id" value="{{ selected.contact.id if selected }}">
                 <input type="hidden" name="msgs_before" value="{{ messages_next_cursor }}">
                 <input type="hidden" name="msgs_limit" value="{{ messages_limit }}">
-                {% if current_profile %}
-                  <input type="hidden" name="profile" value="{{ current_profile }}">
-                {% endif %}
-                <button class="btn btn-ghost" style="width:100%;">Afficher plus d’historique</button>
+                {% if current_profile %}<input type="hidden" name="profile" value="{{ current_profile }}">{% endif %}
+                <button class="btn btn-ghost btn-full">Afficher plus d’historique</button>
               </form>
             {% endif %}
 
@@ -185,9 +106,7 @@
               {% for m in messages %}
                 {% set day = (m.sent_at or m.created_at).astimezone().strftime('%Y-%m-%d') %}
                 {% if day != last_day %}
-                  <div class="msg-divider">
-                    {{ (m.sent_at or m.created_at).astimezone().strftime('%d %b %Y') }}
-                  </div>
+                  <div class="msg-divider">{{ (m.sent_at or m.created_at).astimezone().strftime('%d %b %Y') }}</div>
                   {% set last_day = day %}
                 {% endif %}
                 <div class="msg {{ 'out' if m.direction=='out' else 'in' }}">
@@ -202,7 +121,6 @@
             {% endif %}
           </div>
 
-          <!-- Composer -->
           <div class="composer">
             {% if selected %}
             <form method="post" action="/deals/{{ selected.deal.id }}/send_message" style="display:flex; gap:8px; width:100%;">
@@ -210,7 +128,7 @@
               <button class="btn btn-primary" type="submit">Envoyer</button>
             </form>
             {% else %}
-              <div class="muted">Clique une carte du kanban pour écrire.</div>
+              <div class="muted">Sélectionne un contact pour écrire.</div>
             {% endif %}
           </div>
         </div>
@@ -219,131 +137,52 @@
   </div>
 
   <script>
-    // ------- Interaction cartes : clic pour ouvrir la conversation -------
+    // Drag & Drop + clic carte
     (function() {
-      let draggedEl = null;
-      let didDrag = false;
+      let draggedEl = null, didDrag = false;
 
       document.addEventListener("click", (e) => {
         const card = e.target.closest(".deal[draggable='true']");
         if (!card) return;
-        // ne pas naviguer si clic sur le select statut
-        if (e.target && e.target.matches("select.deal-status")) return;
         if (didDrag) { didDrag = false; return; }
         const href = card.dataset.openHref;
         if (href) window.location.assign(href);
       });
 
-      // ------- Drag & Drop (reste activé, mais optionnel) -------
       document.addEventListener("dragstart", (e) => {
         const card = e.target.closest(".deal[draggable='true']");
         if (!card) return;
-        draggedEl = card;
-        didDrag = false;
+        draggedEl = card; didDrag = false;
         e.dataTransfer.setData("text/plain", card.dataset.dealId || "");
         e.dataTransfer.effectAllowed = "move";
-        const img = document.createElement("canvas");
-        img.width = img.height = 1;
-        e.dataTransfer.setDragImage(img, 0, 0);
+        const img = document.createElement("canvas"); img.width = img.height = 1;
+        e.dataTransfer.setDragImage(img,0,0);
       });
+      document.addEventListener("drag", () => { if (draggedEl) didDrag = true; });
+      document.addEventListener("dragend", () => { draggedEl = null; setTimeout(()=>didDrag=false,0); });
 
-      document.addEventListener("drag", () => {
-        if (draggedEl) didDrag = true;
-      });
-
-      document.addEventListener("dragend", () => {
-        draggedEl = null;
-        setTimeout(() => didDrag = false, 0);
-      });
-
-      function zone(el){ return el.closest(".dropzone"); }
-
-      document.addEventListener("dragover", (e) => {
-        const z = zone(e.target);
-        if (!z) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        z.classList.add("dragover");
-      });
-
-      document.addEventListener("dragleave", (e) => {
-        const z = zone(e.target);
-        if (z) z.classList.remove("dragover");
-      });
-
-      document.addEventListener("drop", async (e) => {
-        const z = zone(e.target);
-        if (!z) return;
-        e.preventDefault();
-        z.classList.remove("dragover");
-        const dealId = (e.dataTransfer.getData("text/plain") || "").trim();
-        const newStatus = z.dataset.status;
-        if (!dealId || !newStatus) return;
-
-        const ok = await updateDealStatus(dealId, newStatus);
-        if (ok && draggedEl && z !== draggedEl.parentElement) {
-          z.appendChild(draggedEl);
-          setSelectedInCardSelect(draggedEl, newStatus);
-          flash(draggedEl);
-        }
-      });
-
-      function flash(el){ el.style.outline="2px solid #86efac"; setTimeout(()=>el.style.outline="none",600); }
-
-      async function updateDealStatus(dealId, newStatus) {
-        try {
-          const form = new FormData();
-          form.append("status", newStatus);
-          const resp = await fetch(`/deals/${dealId}/status`, {
-            method: "POST",
-            headers: {"X-Requested-With":"XMLHttpRequest","Accept":"application/json"},
-            body: form
+      const getZone = (el)=> el.closest(".dropzone, .col .dropzone");
+      document.addEventListener("dragenter", (e)=>{ const z=getZone(e.target); if(!z) return; z.classList.add("dragover"); });
+      document.addEventListener("dragover", (e)=>{ const z=getZone(e.target); if(!z) return; e.preventDefault(); e.dataTransfer.dropEffect="move"; });
+      document.addEventListener("dragleave", (e)=>{ const z=getZone(e.target); if(!z) return; z.classList.remove("dragover"); });
+      document.addEventListener("drop", async (e)=>{
+        const zone=getZone(e.target); if(!zone) return; e.preventDefault(); zone.classList.remove("dragover");
+        const dealId=(e.dataTransfer.getData("text/plain")||"").trim(); const newStatus=zone.dataset.status;
+        if(!dealId || !newStatus) return;
+        try{
+          const form=new FormData(); form.append("status", newStatus);
+          const resp=await fetch(`/deals/${dealId}/status`,{
+            method:"POST",
+            headers:{ "X-Requested-With":"XMLHttpRequest","Accept":"application/json" },
+            body:form
           });
-          const data = await resp.json().catch(()=>null);
-          return resp.ok && data && data.ok;
-        } catch(e){ alert("Erreur réseau : " + e); return false; }
-      }
-
-      function setSelectedInCardSelect(cardEl, statusVal){
-        const sel = cardEl.querySelector("select.deal-status");
-        if (!sel) return;
-        [...sel.options].forEach(o=>{ o.selected = (o.value===statusVal); });
-      }
-
-      // ------- Fallback principal : menu déroulant sur chaque carte -------
-      document.addEventListener("change", async (e) => {
-        const sel = e.target;
-        if (!sel.matches("select.deal-status")) return;
-        const dealId = sel.getAttribute("data-deal-id");
-        const newStatus = sel.value;
-        if (!dealId || !newStatus) return;
-
-        const ok = await updateDealStatus(dealId, newStatus);
-        if (!ok) {
-          // rollback visuel
-          const current = (sel.getAttribute("data-current") || "");
-          if (current) sel.value = current;
-          alert("Impossible de changer le statut.");
-          return;
-        }
-
-        // déplacer la carte dans la bonne colonne
-        const card = sel.closest(".deal");
-        const dz = document.querySelector(`.dropzone[data-status="${newStatus}"]`);
-        if (card && dz && dz !== card.parentElement) {
-          dz.appendChild(card);
-          flash(card);
-        }
-        // mémoriser le nouveau courant
-        sel.setAttribute("data-current", newStatus);
+          let data=null; try{ data=await resp.json(); }catch(_){}
+          if(resp.ok && data && data.ok){
+            if(didDrag && draggedEl && zone!==draggedEl.parentElement){ zone.appendChild(draggedEl); flash(draggedEl); }
+          }else{ alert("Impossible de changer d'étape."); }
+        }catch(err){ alert("Erreur réseau : "+err); }
       });
-
-      // Init data-current pour tous les selects
-      window.addEventListener("DOMContentLoaded", () => {
-        document.querySelectorAll("select.deal-status").forEach((s)=>{
-          s.setAttribute("data-current", s.value);
-        });
-      });
+      function flash(el){ el.style.outline="2px solid #86efac"; setTimeout(()=>{ el.style.outline="none"; },600); }
     })();
   </script>
 </body>
