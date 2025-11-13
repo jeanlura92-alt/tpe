@@ -70,11 +70,11 @@
           <div class="muted">•</div>
           <div class="muted small">{{ selected.contact.phone }}</div>
         {% else %}
-          <div class="muted">Clique une carte du kanban pour ouvrir le fil WhatsApp</div>
+          <div class="muted">Clique une carte du kanban ou un contact à droite pour ouvrir le fil WhatsApp</div>
         {% endif %}
       </div>
 
-      <!-- Toolbar SANS menu déroulant de statut -->
+      <!-- Toolbar SANS menu déroulant -->
       <div class="toolbar">
         <div class="muted small">Profil : <strong>{{ current_profile or '—' }}</strong></div>
         <div class="muted small">
@@ -83,14 +83,17 @@
       </div>
 
       <div class="right-body">
-        <!-- === PANE : TOUS LES CONTACTS (pliant) === -->
+        <!-- === PANE : TOUS LES CONTACTS (dépliant, ouvert par défaut, liste complète) === -->
         <div class="contacts-pane">
           <div class="section">
             <strong>Tous les contacts</strong>
-            <div class="hint">Clique pour ouvrir le fil WhatsApp</div>
+            <div class="hint">Recherche locale et clic pour ouvrir</div>
           </div>
 
-          {% set contact_list = all_contacts or contacts or [] %}
+          {# On affiche TOUJOURS la liste complète.
+             On prend all_contacts si fourni, sinon contacts_all, sinon contacts, sinon []. #}
+          {% set contact_list = (all_contacts if all_contacts is defined else (contacts_all if contacts_all is defined else (contacts if contacts is defined else []))) %}
+
           <details open>
             <summary>Liste ({{ contact_list|length }})</summary>
             <div class="search">
@@ -161,7 +164,7 @@
   </div>
 
   <script>
-    // Drag & Drop + clic carte (inchangé)
+    // Drag & Drop + clic carte
     (function() {
       let draggedEl = null, didDrag = false;
 
@@ -209,7 +212,7 @@
       function flash(el){ el.style.outline="2px solid #86efac"; setTimeout(()=>{ el.style.outline="none"; },600); }
     })();
 
-    // Filtre “Tous les contacts” (recherche locale)
+    // Recherche locale dans “Tous les contacts”
     (function(){
       const input = document.getElementById('contactSearch');
       const list  = document.getElementById('contactsList');
@@ -224,4 +227,4 @@
     })();
   </script>
 </body>
-</html> 
+</html>
