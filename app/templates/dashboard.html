@@ -1,227 +1,227 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>CRM WhatsApp Artisans</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Sidebar -->
+    <aside class="card sidebar">
+      <h3>Navigation</h3>
+      <nav class="sidebar-nav">
+        <a class="active" href="/"><span>Pipeline WhatsApp</span></a>
+        <a href="/contacts"><span>Contacts</span></a>
+        <a href="/contacts/new"><span>+ Nouveau contact</span></a>
+      </nav>
 
-{% block title %}Pipeline WhatsApp{% endblock %}
+      <div class="filter">
+        <h3>Filtrer par profil</h3>
+        <div style="display:flex; flex-wrap:wrap; gap:8px">
+          <a class="btn" href="/?profile=client">Clients</a>
+          <a class="btn" href="/?profile=prospect">Prospects</a>
+          <a class="btn" href="/?profile=fournisseur">Fournisseurs</a>
+          <a class="btn" href="/?profile=autre">Autres</a>
+        </div>
+      </div>
+    </aside>
 
-{% block content %}
-<style>
-  .kanban {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 12px;
-  }
-  .column {
-    background: #f8fafc;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 10px;
-    min-height: 220px;
-  }
-  .column h3 {
-    margin: 0 0 8px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #374151;
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  .cards { display: flex; flex-direction: column; gap: 8px; }
-
-  .card {
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 10px;
-    cursor: grab;
-  }
-  .card:active { cursor: grabbing; }
-  .card h4 { margin: 0 0 6px; font-size: 14px; color: #111827; }
-  .card .meta { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
-
-  /* select compact qui ne déborde pas */
-  .status-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
-  .status-select {
-    max-width: 150px; width: 100%;
-    font-size: 12px; padding: 4px 6px;
-    border: 1px solid #d1d5db; border-radius: 8px; background: #fff;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-
-  /* panneau contacts à droite */
-  .aside {
-    border-left: 1px solid #e5e7eb;
-    padding-left: 12px;
-  }
-  details.contacts-panel summary {
-    cursor: pointer; list-style: none; font-weight: 600; color: #111827;
-  }
-  details.contacts-panel[open] summary { color: #111827; }
-  .contact-list { margin-top: 8px; max-height: 60vh; overflow:auto; }
-  .contact-item { padding: 6px 8px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; }
-  .contact-item a { font-size: 13px; color: #111827; text-decoration: none; }
-  .contact-item small { color: #6b7280; }
-
-  .board-wrap {
-    display: grid;
-    grid-template-columns: 1fr 320px;
-    gap: 16px;
-  }
-
-  @media (max-width: 1024px) {
-    .board-wrap { grid-template-columns: 1fr; }
-    .aside { border-left: none; padding-left: 0; }
-  }
-</style>
-
-<div class="board-wrap">
-  <div>
-    <form method="get" action="/" style="margin-bottom:10px; display:flex; gap:8px; align-items:center;">
-      <label for="profile">Profil :</label>
-      <select name="profile" id="profile" onchange="this.form.submit()">
-        <option value="" {% if not current_profile %}selected{% endif %} disabled>— choisir —</option>
-        <option value="client" {% if current_profile=='client' %}selected{% endif %}>Client</option>
-        <option value="prospect" {% if current_profile=='prospect' %}selected{% endif %}>Prospect</option>
-        <option value="fournisseur" {% if current_profile=='fournisseur' %}selected{% endif %}>Fournisseur</option>
-        <option value="autre" {% if current_profile=='autre' %}selected{% endif %}>Autre</option>
-      </select>
-    </form>
-
-    {% if current_profile %}
-      <div class="kanban" id="kanban">
+    <!-- Kanban (uniquement si profil choisi) -->
+    <section class="kanban">
+      {% if current_profile and current_profile in ['client','prospect','fournisseur','autre'] %}
         {% for col in columns %}
-          <div class="column" data-status="{{ col.id }}">
-            <h3>{{ col.label }}</h3>
-            <div class="cards" ondragover="event.preventDefault();" ondrop="onDrop(event, '{{ col.id }}')">
-              {% for row in deals_by_status[col.id] %}
-                {% set d = row.deal %}
-                {% set c = row.contact %}
-                <div class="card" draggable="true" ondragstart="onDragStart(event)" data-deal-id="{{ d.id }}">
-                  <h4>{{ c.name or 'Sans nom' }}</h4>
-                  <div class="meta">
-                    {{ c.phone or '' }}{% if c.company %} • {{ c.company }}{% endif %}
-                  </div>
+        <div class="card col" data-status="{{ col.id }}">
+          <h4>{{ col.label }}</h4>
+          <div class="dropzone" data-status="{{ col.id }}">
+            {% for item in deals_by_status[col.id] %}
+              <div class="deal" draggable="true" data-deal-id="{{ item.deal.id }}"
+                   data-open-href="/?contact_id={{ item.contact.id }}&profile={{ current_profile }}">
+                <div class="name">{{ item.contact.name }}</div>
+                <div class="meta small muted">
+                  {{ item.contact.phone }} • {{ item.deal.last_message_channel or '—' }} •
+                  {{ item.deal.last_message_at.astimezone().strftime('%d/%m %H:%M') if item.deal.last_message_at else '—' }}
+                </div>
+              </div>
+            {% else %}
+              <div class="muted small" style="padding:6px 8px;">Aucune affaire</div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="card" style="grid-column:1 / -1;">
+          <div class="empty">
+            <div>
+              <div style="font-weight:700; margin-bottom:6px;">Choisissez un profil pour afficher le Kanban</div>
+              <div class="muted">Clients, Prospects, Fournisseurs ou Autres.</div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </section>
 
-                  <div class="status-row">
-                    <small>Statut :</small>
-                    <select class="status-select" onchange="changeStatusSelect({{ d.id }}, this.value)">
-                      {% for opt in columns %}
-                        <option value="{{ opt.id }}" {% if d.status==opt.id %}selected{% endif %}>{{ opt.label }}</option>
-                      {% endfor %}
-                    </select>
+    <!-- Right panel -->
+    <aside class="card right">
+      <div class="right-header">
+        {% if selected %}
+          <div style="font-weight:700">{{ selected.contact.name }}</div>
+          <div class="muted">•</div>
+          <div class="muted small">{{ selected.contact.phone }}</div>
+        {% else %}
+          <div class="muted">Clique une carte du kanban pour ouvrir le fil WhatsApp</div>
+        {% endif %}
+      </div>
+
+      <!-- Toolbar SANS menu déroulant de statut -->
+      <div class="toolbar">
+        <div class="muted small">Profil : <strong>{{ current_profile or '—' }}</strong></div>
+        <div class="muted small">
+          {{ total_deals or 0 }} affaires • {{ total_contacts or 0 }} contacts
+        </div>
+      </div>
+
+      <div class="right-body">
+        <!-- === PANE : TOUS LES CONTACTS (pliant) === -->
+        <div class="contacts-pane">
+          <div class="section">
+            <strong>Tous les contacts</strong>
+            <div class="hint">Clique pour ouvrir le fil WhatsApp</div>
+          </div>
+
+          {% set contact_list = all_contacts or contacts or [] %}
+          <details open>
+            <summary>Liste ({{ contact_list|length }})</summary>
+            <div class="search">
+              <input id="contactSearch" type="text" placeholder="Rechercher… (nom, tel, email)">
+            </div>
+            <div id="contactsList" class="contacts-list">
+              {% for c in contact_list %}
+                <a class="contact-item {% if selected and selected.contact.id==c.id %}active{% endif %}"
+                   href="/?contact_id={{ c.id }}{% if current_profile %}&profile={{ current_profile }}{% endif %}">
+                  <div style="font-weight:600">{{ c.name }}</div>
+                  <div class="contact-meta">
+                    {{ c.type or '—' }} • {{ c.phone or '—' }} {% if c.email %}• {{ c.email }}{% endif %}
+                  </div>
+                </a>
+              {% else %}
+                <div class="muted small" style="padding:8px 12px;">Aucun contact</div>
+              {% endfor %}
+            </div>
+          </details>
+        </div>
+
+        <!-- === PANE : THREAD WHATSAPP === -->
+        <div class="thread">
+          <div class="messages">
+            {% if messages_next_cursor and selected %}
+              <form method="get" style="margin-bottom:8px;">
+                <input type="hidden" name="contact_id" value="{{ selected.contact.id }}">
+                <input type="hidden" name="msgs_before" value="{{ messages_next_cursor }}">
+                <input type="hidden" name="msgs_limit" value="{{ messages_limit }}">
+                {% if current_profile %}<input type="hidden" name="profile" value="{{ current_profile }}">{% endif %}
+                <button class="btn btn-ghost btn-full">Afficher plus d’historique</button>
+              </form>
+            {% endif %}
+
+            {% if messages %}
+              {% set last_day = None %}
+              {% for m in messages %}
+                {% set day = (m.sent_at or m.created_at).astimezone().strftime('%Y-%m-%d') %}
+                {% if day != last_day %}
+                  <div class="msg-divider">{{ (m.sent_at or m.created_at).astimezone().strftime('%d %b %Y') }}</div>
+                  {% set last_day = day %}
+                {% endif %}
+                <div class="msg {{ 'out' if m.direction=='out' else 'in' }}">
+                  <div class="bubble">
+                    {{ m.content | e }}
+                    <span class="meta">{{ (m.sent_at or m.created_at).astimezone().strftime('%H:%M') }}</span>
                   </div>
                 </div>
               {% endfor %}
-            </div>
+            {% else %}
+              <div class="muted small">Aucun message à afficher.</div>
+            {% endif %}
           </div>
-        {% endfor %}
+
+          <div class="composer">
+            {% if selected %}
+            <form method="post" action="/deals/{{ selected.deal.id }}/send_message" style="display:flex; gap:8px; width:100%;">
+              <textarea name="content" placeholder="Écrire un message WhatsApp…"></textarea>
+              <button class="btn btn-primary" type="submit">Envoyer</button>
+            </form>
+            {% else %}
+              <div class="muted">Sélectionne un contact pour écrire.</div>
+            {% endif %}
+          </div>
+        </div>
       </div>
-    {% else %}
-      <p>Choisissez un profil pour afficher le Kanban.</p>
-    {% endif %}
+    </aside>
   </div>
 
-  <aside class="aside">
-    <details class="contacts-panel" open>
-      <summary>Tous les contacts ({{ contacts|length }})</summary>
-      <div class="contact-list">
-        {% for ct in contacts %}
-          <div class="contact-item">
-            <a href="/?contact_id={{ ct.id }}{% if current_profile %}&profile={{ current_profile }}{% endif %}">{{ ct.name or 'Sans nom' }}</a>
-            <small>{{ ct.type or '-' }}</small>
-          </div>
-        {% endfor %}
-      </div>
-    </details>
+  <script>
+    // Drag & Drop + clic carte (inchangé)
+    (function() {
+      let draggedEl = null, didDrag = false;
 
-    {% if selected %}
-      <hr style="margin:12px 0;">
-      <h4>Conversation avec {{ selected.contact.name }}</h4>
-      <div id="thread" style="border:1px solid #e5e7eb; border-radius:8px; padding:8px; max-height:40vh; overflow:auto;">
-        {% for m in messages %}
-          <div style="margin-bottom:8px;">
-            <small style="color:#6b7280;">{{ m.created_at }}</small><br>
-            <span><strong>{{ '↖' if m.direction=='in' else '↘' }} {{ m.direction }}</strong> — {{ m.content }}</span>
-          </div>
-        {% endfor %}
-      </div>
+      document.addEventListener("click", (e) => {
+        const card = e.target.closest(".deal[draggable='true']");
+        if (!card) return;
+        if (didDrag) { didDrag = false; return; }
+        const href = card.dataset.openHref;
+        if (href) window.location.assign(href);
+      });
 
-      <form id="send-form" method="post" action="/deals/{{ selected.deal.id }}/send_message" onsubmit="return sendMessage(event)" style="margin-top:8px;">
-        <textarea name="content" rows="2" placeholder="Écrire un message…" style="width:100%;"></textarea>
-        <button type="submit">Envoyer</button>
-      </form>
-    {% endif %}
-  </aside>
-</div>
+      document.addEventListener("dragstart", (e) => {
+        const card = e.target.closest(".deal[draggable='true']");
+        if (!card) return;
+        draggedEl = card; didDrag = false;
+        e.dataTransfer.setData("text/plain", card.dataset.dealId || "");
+        e.dataTransfer.effectAllowed = "move";
+        const img = document.createElement("canvas"); img.width = img.height = 1;
+        e.dataTransfer.setDragImage(img,0,0);
+      });
+      document.addEventListener("drag", () => { if (draggedEl) didDrag = true; });
+      document.addEventListener("dragend", () => { draggedEl = null; setTimeout(()=>didDrag=false,0); });
 
-<script>
-  // Drag & drop
-  function onDragStart(ev){
-    ev.dataTransfer.setData("dealId", ev.target.closest(".card").dataset.dealId);
-  }
-  function onDrop(ev, newStatus){
-    ev.preventDefault();
-    const dealId = ev.dataTransfer.getData("dealId");
-    if(!dealId) return;
-    const fd = new FormData();
-    fd.append("status", newStatus);
-    fetch(`/deals/${dealId}/status`, { method: "POST", body: fd })
-      .then(r => r.json())
-      .then(res => {
-        if(res.ok){
-          // déplacer la carte dans la colonne cible
-          const card = document.querySelector(`.card[data-deal-id="${dealId}"]`);
-          const col = document.querySelector(`.column[data-status="${newStatus}"] .cards`);
-          if(card && col){ col.appendChild(card); }
-          // sync aussi le select
-          const sel = card.querySelector(".status-select");
-          if(sel){ sel.value = newStatus; }
+      const getZone = (el)=> el.closest(".dropzone, .col .dropzone");
+      document.addEventListener("dragenter", (e)=>{ const z=getZone(e.target); if(!z) return; z.classList.add("dragover"); });
+      document.addEventListener("dragover", (e)=>{ const z=getZone(e.target); if(!z) return; e.preventDefault(); e.dataTransfer.dropEffect="move"; });
+      document.addEventListener("dragleave", (e)=>{ const z=getZone(e.target); if(!z) return; z.classList.remove("dragover"); });
+      document.addEventListener("drop", async (e)=>{
+        const zone=getZone(e.target); if(!zone) return; e.preventDefault(); zone.classList.remove("dragover");
+        const dealId=(e.dataTransfer.getData("text/plain")||"").trim(); const newStatus=zone.dataset.status;
+        if(!dealId || !newStatus) return;
+        try{
+          const form=new FormData(); form.append("status", newStatus);
+          const resp=await fetch(`/deals/${dealId}/status`,{
+            method:"POST",
+            headers:{ "X-Requested-With":"XMLHttpRequest","Accept":"application/json" },
+            body:form
+          });
+          let data=null; try{ data=await resp.json(); }catch(_){}
+          if(resp.ok && data && data.ok){
+            if(didDrag && draggedEl && zone!==draggedEl.parentElement){ zone.appendChild(draggedEl); flash(draggedEl); }
+          }else{ alert("Impossible de changer d'étape."); }
+        }catch(err){ alert("Erreur réseau : "+err); }
+      });
+      function flash(el){ el.style.outline="2px solid #86efac"; setTimeout(()=>{ el.style.outline="none"; },600); }
+    })();
+
+    // Filtre “Tous les contacts” (recherche locale)
+    (function(){
+      const input = document.getElementById('contactSearch');
+      const list  = document.getElementById('contactsList');
+      if(!input || !list) return;
+      input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        for(const a of list.querySelectorAll('.contact-item')){
+          const txt = a.textContent.toLowerCase();
+          a.style.display = txt.includes(q) ? '' : 'none';
         }
       });
-  }
-
-  // Menu déroulant statut (par carte)
-  function changeStatusSelect(dealId, statusVal){
-    const fd = new FormData();
-    fd.append("status", statusVal);
-    fetch(`/deals/${dealId}/status`, { method: "POST", body: fd })
-      .then(r => r.json())
-      .then(res => {
-        if(res.ok){
-          // déplacer la carte
-          const card = document.querySelector(`.card[data-deal-id="${dealId}"]`);
-          const col = document.querySelector(`.column[data-status="${statusVal}"] .cards`);
-          if(card && col){ col.appendChild(card); }
-        }
-      });
-  }
-
-  // Envoi message sans reload
-  function sendMessage(e){
-    e.preventDefault();
-    const form = e.target;
-    const url = form.action;
-    const fd = new FormData(form);
-    fetch(url, { method: "POST", body: fd })
-      .then(r => r.json())
-      .then(res => {
-        if(res.ok){
-          const ta = form.querySelector('textarea[name="content"]');
-          if(ta && ta.value.trim()){
-            const thread = document.getElementById("thread");
-            const now = new Date().toISOString();
-            const div = document.createElement("div");
-            div.style.marginBottom = "8px";
-            div.innerHTML = `<small style="color:#6b7280;">${now}</small><br><span><strong>↘ out</strong> — ${escapeHtml(ta.value)}</span>`;
-            thread.appendChild(div);
-            thread.scrollTop = thread.scrollHeight;
-            ta.value = "";
-          }
-        }
-      });
-    return false;
-  }
-
-  function escapeHtml(s){
-    return s.replace(/[&<>"']/g, function(m){
-      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[m];
-    });
-  }
-</script>
-{% endblock %}
+    })();
+  </script>
+</body>
+</html> 
