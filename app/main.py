@@ -1,405 +1,237 @@
-from typing import List, Dict, Any, Optional
 import os
 from datetime import datetime, timezone
 
-import httpx
-from fastapi import FastAPI, Depends, Request, Form, Query
+from fastapi import FastAPI, Request, Depends, Form, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, PlainTextResponse
-from fastapi.templating import Jinja2Templates
-from sqlmodel import select, Session, SQLModel
+from sqlmodel import SQLModel, Session, select
+from jinja2 import TemplateNotFound
 
-from .database import get_session, create_db_and_tables
-from .models import (
-    Contact, Deal, Message,
-    DealStatus, ContactType, MessageDirection
-)
+from .database import create_db_and_tables, get_session
+from .models import Contact, Deal, Message
 
-# --- Config WhatsApp ---
-WA_TOKEN = os.getenv("META_WA_ACCESS_TOKEN", "").strip()
-WA_PHONE_NUMBER_ID = os.getenv("META_WA_PHONE_NUMBER_ID", "").strip()
-WA_VERIFY_TOKEN = os.getenv("META_WA_VERIFY_TOKEN", "").strip()
-GRAPH_API_BASE = "https://graph.facebook.com/v20.0"
-SEND_URL = f"{GRAPH_API_BASE}/{WA_PHONE_NUMBER_ID}/messages" if WA_PHONE_NUMBER_ID else None
+app = FastAPI()
 
-# --- App ---
-app = FastAPI(title="CRM WhatsApp Artisans")
-templates = Jinja2Templates(directory="app/templates")
-app.mount("/static", StaticFiles(directory="app/static", check_dir=False), name="static")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
+# --------------------------------------------------------------------------
+# Kanban columns configuration
+# --------------------------------------------------------------------------
+COLUMNS = [
+    {"id": "new", "title": "Nouveau"},
+    {"id": "in_progress", "title": "En cours"},
+    {"id": "waiting", "title": "En attente"},
+    {"id": "done", "title": "Terminé"}
+]
+
+
+# --------------------------------------------------------------------------
+# Startup
+# --------------------------------------------------------------------------
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
-    try:
-        SQLModel.metadata.create_all(get_session().get_bind())
-    except Exception:
-        pass
 
 
-# --- Helpers ---
-def _pipeline_labels_for_profile(profile: Optional[str]) -> Dict[str, str]:
-    base = {
-        DealStatus.NEW: "Nouveaux messages",
-        DealStatus.QUOTE: "Devis en cours",
-        DealStatus.SCHEDULED: "Interventions planifiées",
-        DealStatus.CLOSED: "Facturé / Clôturé",
-    }
-    if profile == ContactType.PROSPECT:
-        return {
-            DealStatus.NEW: "Nouveaux / À qualifier",
-            DealStatus.QUOTE: "Devis envoyé",
-            DealStatus.SCHEDULED: "Relance planifiée",
-            DealStatus.CLOSED: "Gagné / Perdu",
-        }
-    if profile == ContactType.FOURNISSEUR:
-        return {
-            DealStatus.NEW: "Demandes fournisseurs",
-            DealStatus.QUOTE: "Propositions reçues",
-            DealStatus.SCHEDULED: "Commande en cours",
-            DealStatus.CLOSED: "Réceptionnée / Clôturée",
-        }
-    if profile == ContactType.AUTRE:
-        return {
-            DealStatus.NEW: "Nouveaux",
-            DealStatus.QUOTE: "À traiter",
-            DealStatus.SCHEDULED: "Planifié",
-            DealStatus.CLOSED: "Terminé",
-        }
-    return base
-
-
-def _get_pipeline_columns(profile: Optional[str]) -> List[Dict[str, str]]:
-    labels = _pipeline_labels_for_profile(profile)
-    return [
-        {"id": DealStatus.NEW, "label": labels[DealStatus.NEW]},
-        {"id": DealStatus.QUOTE, "label": labels[DealStatus.QUOTE]},
-        {"id": DealStatus.SCHEDULED, "label": labels[DealStatus.SCHEDULED]},
-        {"id": DealStatus.CLOSED, "label": labels[DealStatus.CLOSED]},
-    ]
-
-
-# --- Vues ---
+# --------------------------------------------------------------------------
+# Dashboard
+# --------------------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 def dashboard(
     request: Request,
-    session: Session = Depends(get_session),
     contact_id: int | None = None,
     profile: str | None = None,
+    session: Session = Depends(get_session)
 ):
-    """Interface avec bandeau + historique complet des messages."""
-    profile = profile if profile in {ContactType.CLIENT, ContactType.PROSPECT, ContactType.FOURNISSEUR, ContactType.AUTRE} else None
-    columns = _get_pipeline_columns(profile)
-
-    stmt = select(Deal, Contact).join(Contact, Deal.contact_id == Contact.id)
-    rows = session.exec(stmt).all()
-
-    if profile:
-        rows = [(d, c) for (d, c) in rows if c.type == profile]
-
-    deals_by_status: Dict[str, List[Dict[str, Any]]] = {c["id"]: [] for c in columns}
-    for deal, contact in rows:
-        deals_by_status.get(deal.status, deals_by_status[DealStatus.NEW]).append({"deal": deal, "contact": contact})
-
-    selected: Optional[Dict[str, Any]] = None
-    if contact_id:
-        for deal, contact in rows:
-            if contact.id == contact_id:
-                selected = {"deal": deal, "contact": contact}
-                break
-    else:
-        for col in columns:
-            if deals_by_status[col["id"]]:
-                selected = deals_by_status[col["id"]][0]
-                break
-
-    contacts_list = session.exec(select(Contact).order_by(Contact.name)).all()
-    status_options = [
-        (DealStatus.NEW, _pipeline_labels_for_profile(profile)[DealStatus.NEW]),
-        (DealStatus.QUOTE, _pipeline_labels_for_profile(profile)[DealStatus.QUOTE]),
-        (DealStatus.SCHEDULED, _pipeline_labels_for_profile(profile)[DealStatus.SCHEDULED]),
-        (DealStatus.CLOSED, _pipeline_labels_for_profile(profile)[DealStatus.CLOSED]),
-    ]
-
-    messages: List[Message] = []
-    if selected:
-        s_deal: Deal = selected["deal"]
-        messages = session.exec(
-            select(Message).where(Message.deal_id == s_deal.id).order_by(Message.sent_at.asc())
+    try:
+        # Charger TOUS LES CONTACTS pour le panneau droit
+        all_contacts = session.exec(
+            select(Contact).order_by(Contact.name)
         ).all()
 
-    return templates.TemplateResponse(
-        "dashboard.html",  # <<< on garde le nom 'dashboard.html'
-        {
+        current_profile = profile if profile in ["client", "prospect", "fournisseur", "autre"] else None
+
+        # Charger les deals si un profil est sélectionné
+        deals_by_status = {c["id"]: [] for c in COLUMNS}
+        if current_profile:
+            rows = session.exec(
+                select(Deal, Contact)
+                .join(Contact, Deal.contact_id == Contact.id)
+                .where(Contact.type == current_profile)
+            ).all()
+
+            for deal, contact in rows:
+                deals_by_status[deal.status].append({"deal": deal, "contact": contact})
+
+        # Thread si contact sélectionné
+        selected = None
+        messages = []
+        if contact_id:
+            c = session.get(Contact, contact_id)
+            if c:
+                d = session.exec(select(Deal).where(Deal.contact_id == c.id)).first()
+                if d:
+                    selected = {"contact": c, "deal": d}
+                    messages = session.exec(
+                        select(Message)
+                        .where(Message.deal_id == d.id)
+                        .order_by(Message.created_at)
+                    ).all()
+
+        return app.state.templates.TemplateResponse("dashboard.html", {
             "request": request,
-            "columns": columns,
+            "contacts": all_contacts,                # IMPORTANT
+            "current_profile": current_profile,
             "deals_by_status": deals_by_status,
+            "columns": COLUMNS,
             "selected": selected,
-            "contacts_list": contacts_list,
-            "status_options": status_options,
-            "current_profile": profile or "tous",
             "messages": messages,
-        },
-    )
+        })
+
+    finally:
+        session.close()
 
 
-# --- WhatsApp send ---
-async def wa_send_text(to_msisdn: str, text: str) -> Dict[str, Any]:
-    if not (WA_TOKEN and SEND_URL):
-        return {"ok": False, "error": "WhatsApp API non configurée (token/phone_number_id)"}
-    payload = {"messaging_product": "whatsapp", "to": to_msisdn, "type": "text", "text": {"body": text}}
-    headers = {"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"}
-    async with httpx.AsyncClient(timeout=20) as client:
-        r = await client.post(SEND_URL, json=payload, headers=headers)
-        try:
-            data = r.json()
-        except Exception:
-            data = {"status_code": r.status_code, "text": r.text}
-    if r.status_code >= 400:
-        return {"ok": False, "status": r.status_code, "data": data}
-    return {"ok": True, "status": r.status_code, "data": data}
-
-
-@app.post("/deals/{deal_id}/send_message")
-async def send_whatsapp_message(
-    deal_id: int,
-    content: str = Form(...),
-    session: Session = Depends(get_session),
+# --------------------------------------------------------------------------
+# Update Contact
+# --------------------------------------------------------------------------
+@app.post("/contacts/{contact_id}/update")
+def update_contact(
+    contact_id: int,
+    name: str = Form(...),
+    phone: str = Form(...),
+    contact_type: str = Form(...),
+    session: Session = Depends(get_session)
 ):
-    content = (content or "").strip()
-    if not content:
-        return JSONResponse({"error": "message vide"}, status_code=400)
-
-    deal = session.get(Deal, deal_id)
-    if not deal:
-        return JSONResponse({"error": "affaire inconnue"}, status_code=404)
-
-    contact = session.get(Contact, deal.contact_id)
-    if not contact or not contact.phone:
-        return JSONResponse({"error": "contact inconnu ou sans numéro"}, status_code=404)
-
-    # envoi WhatsApp
-    _ = await wa_send_text(contact.phone, content)
-    now = datetime.now(timezone.utc)
-
-    # trace OUTBOUND
-    msg = Message(
-        deal_id=deal.id,
-        contact_id=contact.id,
-        direction=MessageDirection.OUTBOUND,
-        content=content,
-        channel="WhatsApp",
-        created_at=now,
-        sent_at=now,
-    )
-    session.add(msg)
-
-    deal.last_message_preview = content[:200]
-    deal.last_message_channel = "WhatsApp"
-    deal.last_message_at = now
-    session.add(deal)
-    session.commit()
-
-    return RedirectResponse(url=f"/?contact_id={contact.id}", status_code=303)
-
-
-# --- Webhook WhatsApp ---
-@app.get("/webhook/whatsapp")
-def whatsapp_webhook_verify(
-    hub_mode: str = Query("", alias="hub.mode"),
-    hub_verify_token: str = Query("", alias="hub.verify_token"),
-    hub_challenge: str = Query("", alias="hub.challenge"),
-):
-    if hub_mode == "subscribe" and hub_verify_token == WA_VERIFY_TOKEN:
-        return PlainTextResponse(hub_challenge)
-    return PlainTextResponse("forbidden", status_code=403)
-
-
-@app.post("/webhook/whatsapp")
-async def whatsapp_webhook(payload: dict, session: Session = Depends(get_session)):
     try:
-        entries = payload.get("entry", [])
-        for entry in entries:
-            for change in entry.get("changes", []):
-                value = change.get("value", {})
-                messages = value.get("messages", [])
-                contacts_meta = value.get("contacts", [])
-                profile_name = None
-                if contacts_meta:
-                    profile_name = contacts_meta[0].get("profile", {}).get("name")
+        c = session.get(Contact, contact_id)
+        if not c:
+            raise HTTPException(404, "Contact introuvable")
 
-                for m in messages:
-                    from_msisdn = m.get("from")
-                    if from_msisdn and not from_msisdn.startswith("+"):
-                        from_msisdn = f"+{from_msisdn}"
-                    text_body = ""
-                    if m.get("type") == "text":
-                        text_body = (m.get("text", {}) or {}).get("body", "") or ""
-
-                    # contact
-                    contact = session.exec(select(Contact).where(Contact.phone == from_msisdn)).first()
-                    if not contact:
-                        contact = Contact(
-                            type=ContactType.CLIENT,
-                            name=profile_name or from_msisdn,
-                            phone=from_msisdn,
-                            tags="Whatsapp",
-                        )
-                        session.add(contact)
-                        session.commit()
-                        session.refresh(contact)
-
-                    # deal rattaché
-                    deal = session.exec(
-                        select(Deal).where(Deal.contact_id == contact.id).order_by(Deal.id.desc())
-                    ).first()
-                    if not deal:
-                        deal = Deal(title="Conversation WhatsApp", contact_id=contact.id, status=DealStatus.NEW)
-                        session.add(deal)
-                        session.commit()
-                        session.refresh(deal)
-
-                    if text_body:
-                        now = datetime.now(timezone.utc)
-                        msg = Message(
-                            deal_id=deal.id,
-                            contact_id=contact.id,
-                            direction=MessageDirection.INBOUND,
-                            content=text_body[:4000],
-                            channel="WhatsApp",
-                            created_at=now,
-                            sent_at=now,
-                        )
-                        session.add(msg)
-
-                    deal.last_message_preview = (text_body or "")[:200]
-                    deal.last_message_channel = "WhatsApp"
-                    deal.last_message_at = datetime.now(timezone.utc)
-                    if deal.status == DealStatus.CLOSED:
-                        deal.status = DealStatus.NEW
-                    session.add(deal)
-                    session.commit()
+        c.name = name
+        c.phone = phone
+        c.type = contact_type
+        session.add(c)
+        session.commit()
 
         return JSONResponse({"ok": True})
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=200)
+
+    finally:
+        session.close()
 
 
-# --- Changement de statut depuis la fiche ---
+# --------------------------------------------------------------------------
+# Drag & Drop : Update deal status
+# --------------------------------------------------------------------------
 @app.post("/deals/{deal_id}/status")
 def update_deal_status(
-    request: Request,
     deal_id: int,
-    status: str = Form(...),
-    next: Optional[str] = Form(None),
-    session: Session = Depends(get_session),
+    new_status: str = Form(...),
+    session: Session = Depends(get_session)
 ):
-    if status not in {DealStatus.NEW, DealStatus.QUOTE, DealStatus.SCHEDULED, DealStatus.CLOSED}:
-        return JSONResponse({"error": "statut invalide"}, status_code=400)
+    try:
+        if new_status not in [c["id"] for c in COLUMNS]:
+            raise HTTPException(400, "Statut invalide")
 
-    deal = session.get(Deal, deal_id)
-    if not deal:
-        return JSONResponse({"error": "affaire inconnue"}, status_code=404)
+        deal = session.get(Deal, deal_id)
+        if not deal:
+            raise HTTPException(404, "Deal introuvable")
 
-    deal.status = status
-    session.add(deal)
-    session.commit()
+        deal.status = new_status
+        session.add(deal)
+        session.commit()
 
-    accept = (request.headers.get("accept") or "").lower()
-    is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in accept
-    if is_ajax:
-        return JSONResponse({"ok": True, "deal_id": deal.id, "new_status": status})
+        return JSONResponse({"ok": True})
 
-    redirect_url = next or f"/?contact_id={deal.contact_id}"
-    return RedirectResponse(url=redirect_url, status_code=303)
+    finally:
+        session.close()
 
 
-# --- Annuaire contacts ---
-@app.get("/contacts", response_class=HTMLResponse)
-def contacts_list_view(request: Request, session: Session = Depends(get_session)):
-    rows = session.exec(select(Contact).order_by(Contact.created_at.desc())).all()
-    return templates.TemplateResponse("contacts.html", {"request": request, "contacts": rows})
-
-
-@app.get("/contacts/new", response_class=HTMLResponse)
-def contacts_new_form(request: Request):
-    return templates.TemplateResponse(
-        "contact_form.html",
-        {
-            "request": request,
-            "mode": "new",
-            "contact": None,
-            "contact_types": [ContactType.CLIENT, ContactType.PROSPECT, ContactType.FOURNISSEUR, ContactType.AUTRE],
-        },
-    )
-
-
-@app.post("/contacts/new")
-def contacts_create(
-    session: Session = Depends(get_session),
-    type: str = Form(ContactType.CLIENT),
-    name: str = Form(...),
-    phone: str = Form(...),
-    email: str = Form(""),
-    company: str = Form(""),
-    address: str = Form(""),
-    tags: str = Form(""),
+# --------------------------------------------------------------------------
+# Send WhatsApp message
+# --------------------------------------------------------------------------
+@app.post("/deals/{deal_id}/send_message")
+def send_whatsapp_message(
+    deal_id: int,
+    message: str = Form(...),
+    session: Session = Depends(get_session)
 ):
-    c = Contact(
-        type=type, name=name.strip(), phone=phone.strip(),
-        email=(email or None), company=(company or None),
-        address=(address or None), tags=(tags or None),
-    )
-    session.add(c)
-    session.commit()
-    session.refresh(c)
+    try:
+        deal = session.get(Deal, deal_id)
+        if not deal:
+            raise HTTPException(404, "Deal introuvable")
 
-    d = Deal(title="Nouvelle affaire", contact_id=c.id, status=DealStatus.NEW)
-    session.add(d)
-    session.commit()
-    return RedirectResponse(url="/contacts", status_code=303)
+        contact = session.get(Contact, deal.contact_id)
+        if not contact:
+            raise HTTPException(404, "Contact introuvable")
+
+        # Enregistrer le message sortant
+        msg = Message(
+            deal_id=deal.id,
+            contact_id=contact.id,
+            direction="out",
+            channel="WhatsApp",
+            content=message,
+            created_at=datetime.now(timezone.utc),
+            sent_at=datetime.now(timezone.utc)
+        )
+
+        session.add(msg)
+        session.commit()
+
+        # Ici on peut appeler l'API Meta WhatsApp
+        # (non inclus pour l’instant)
+
+        return JSONResponse({"ok": True})
+
+    finally:
+        session.close()
 
 
-@app.get("/contacts/{contact_id}/edit", response_class=HTMLResponse)
-def contacts_edit_form(contact_id: int, request: Request, session: Session = Depends(get_session)):
-    contact = session.get(Contact, contact_id)
-    if not contact:
-        return HTMLResponse("Contact introuvable", status_code=404)
-    return templates.TemplateResponse(
-        "contact_form.html",
-        {
-            "request": request,
-            "mode": "edit",
-            "contact": contact,
-            "contact_types": [ContactType.CLIENT, ContactType.PROSPECT, ContactType.FOURNISSEUR, ContactType.AUTRE],
-        },
-    )
+# --------------------------------------------------------------------------
+# Webhook WhatsApp
+# --------------------------------------------------------------------------
+@app.post("/webhook")
+async def receive_webhook(request: Request, session: Session = Depends(get_session)):
+    try:
+        data = await request.json()
 
+        # Chaque message entrant doit créer un enregistrement
+        if "entry" in data:
+            for entry in data["entry"]:
+                if "changes" in entry:
+                    for change in entry["changes"]:
+                        value = change.get("value", {})
+                        messages = value.get("messages", [])
+                        if messages:
+                            for m in messages:
+                                phone = m["from"]
+                                content = m.get("text", {}).get("body", "")
 
-@app.post("/contacts/{contact_id}/edit")
-def contacts_update(
-    contact_id: int,
-    session: Session = Depends(get_session),
-    type: str = Form(...),
-    name: str = Form(...),
-    phone: str = Form(...),
-    email: str = Form(""),
-    company: str = Form(""),
-    address: str = Form(""),
-    tags: str = Form(""),
-):
-    contact = session.get(Contact, contact_id)
-    if not contact:
-        return JSONResponse({"error": "contact introuvable"}, status_code=404)
+                                # Trouver contact associé
+                                contact = session.exec(
+                                    select(Contact).where(Contact.phone == phone)
+                                ).first()
 
-    contact.type = type
-    contact.name = name.strip()
-    contact.phone = phone.strip()
-    contact.email = (email or None)
-    contact.company = (company or None)
-    contact.address = (address or None)
-    contact.tags = (tags or None)
+                                if contact:
+                                    deal = session.exec(
+                                        select(Deal).where(Deal.contact_id == contact.id)
+                                    ).first()
 
-    session.add(contact)
-    session.commit()
-    return RedirectResponse(url="/contacts", status_code=303)
+                                    if deal:
+                                        session.add(Message(
+                                            deal_id=deal.id,
+                                            contact_id=contact.id,
+                                            direction="in",
+                                            channel="WhatsApp",
+                                            content=content,
+                                            created_at=datetime.now(timezone.utc),
+                                            sent_at=datetime.now(timezone.utc)
+                                        ))
+                                        session.commit()
+
+        return JSONResponse({"status": "received"})
+
+    finally:
+        session.close()
