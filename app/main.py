@@ -164,7 +164,11 @@ def contacts_page(
 def contacts_new_form(
     request: Request,
 ):
-    return render_template("contact_form.html", {"request": request, "mode": "create"})
+    # 🔧 Correction : on passe aussi `contact=None` pour que le template ne plante pas
+    return render_template(
+        "contact_form.html",
+        {"request": request, "mode": "create", "contact": None},
+    )
 
 @app.post("/contacts/new")
 def contacts_create(
@@ -243,14 +247,6 @@ def send_whatsapp_message(
     session.add(deal)
 
     session.commit()
-
-    # Si requête XHR : JSON ; sinon on revient au thread
-    is_ajax = False
-    try:
-        # on ne dépend pas de Request ici; on retourne JSON par défaut si erreur
-        is_ajax = True  # notre formulaire de dashboard est classique => redirect
-    except Exception:
-        pass
 
     return RedirectResponse(
         f"/?contact_id={contact.id}&profile={contact.type}",
