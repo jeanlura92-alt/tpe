@@ -1,50 +1,77 @@
-{% extends "base.html" %}
-{% block title %}Contacts - CRM WhatsApp Artisans{% endblock %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Contacts • CRM WhatsApp</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container" style="grid-template-columns:240px 1fr;">
+    <aside class="card sidebar">
+      <h3>Navigation</h3>
+      <nav class="sidebar-nav">
+        <a href="/"><span>Pipeline WhatsApp</span></a>
+        <a class="active" href="/contacts"><span>Contacts</span></a>
+        <a href="/contacts/new"><span>+ Nouveau contact</span></a>
+      </nav>
+    </aside>
 
-{% block content %}
-<main class="main-content">
-  <section class="panel">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <div>
-        <div style="font-size:16px;font-weight:600;">Contacts</div>
-        <div style="font-size:12px;color:var(--text-soft);">Liste de tous les contacts, avec édition.</div>
+    <main class="card" style="padding:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+        <h2 style="margin:0;">Contacts</h2>
+        <a class="btn btn-primary" href="/contacts/new">+ Nouveau contact</a>
       </div>
-      <a class="btn btn-primary" href="/contacts/new">+ Nouveau contact</a>
-    </div>
 
-    <div style="overflow:auto;">
-      <table style="width:100%;border-collapse:collapse;">
-        <thead>
-          <tr style="text-align:left;border-bottom:1px solid var(--border);">
-            <th style="padding:8px;">Nom</th>
-            <th style="padding:8px;">Type</th>
-            <th style="padding:8px;">Téléphone</th>
-            <th style="padding:8px;">Email</th>
-            <th style="padding:8px;">Société</th>
-            <th style="padding:8px;">Tags</th>
-            <th style="padding:8px;">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for c in contacts %}
-          <tr style="border-bottom:1px solid var(--border);">
-            <td style="padding:8px;">{{ c.name }}</td>
-            <td style="padding:8px;text-transform:capitalize;">{{ c.type }}</td>
-            <td style="padding:8px;">{{ c.phone }}</td>
-            <td style="padding:8px;">{{ c.email or "—" }}</td>
-            <td style="padding:8px;">{{ c.company or "—" }}</td>
-            <td style="padding:8px;">{{ c.tags or "—" }}</td>
-            <td style="padding:8px;white-space:nowrap;">
-              <a class="btn" href="/?contact_id={{ c.id }}">Ouvrir</a>
-              <a class="btn" href="/contacts/{{ c.id }}/edit">Modifier</a>
-            </td>
-          </tr>
-          {% else %}
-          <tr><td colspan="7" style="padding:10px;color:var(--text-soft);">Aucun contact.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-</main>
-{% endblock %}
+      <div style="margin:12px 0 16px; display:flex; gap:8px; flex-wrap:wrap;">
+        <form method="get" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <input type="text" name="q" placeholder="Rechercher nom, téléphone, email…" value="{{ q or '' }}" style="min-width:260px">
+          <select name="type" style="min-width:160px">
+            <option value="">— Type —</option>
+            <option value="client" {% if type=='client' %}selected{% endif %}>Client</option>
+            <option value="prospect" {% if type=='prospect' %}selected{% endif %}>Prospect</option>
+            <option value="fournisseur" {% if type=='fournisseur' %}selected{% endif %}>Fournisseur</option>
+            <option value="autre" {% if type=='autre' %}selected{% endif %}>Autre</option>
+          </select>
+          <button class="btn">Filtrer</button>
+        </form>
+      </div>
+
+      <div class="table" style="overflow:auto;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Nom</th>
+              <th>Type</th>
+              <th>Téléphone</th>
+              <th>Email</th>
+              <th>Entreprise</th>
+              <th>Tags</th>
+              <th style="width:1%">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in contacts %}
+            <tr>
+              <td><a href="/?contact_id={{ c.id }}&profile={{ c.type or 'autre' }}">{{ c.name }}</a></td>
+              <td class="small muted">{{ c.type or '—' }}</td>
+              <td>{{ c.phone or '—' }}</td>
+              <td>{{ c.email or '—' }}</td>
+              <td>{{ c.company or '—' }}</td>
+              <td class="small muted">{{ c.tags or '—' }}</td>
+              <td>
+                <div style="display:flex; gap:6px;">
+                  <a class="btn" href="/contacts/{{ c.id }}/edit">Modifier</a>
+                </div>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="small muted">Aucun contact.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
