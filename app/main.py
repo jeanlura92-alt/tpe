@@ -20,7 +20,6 @@ env = Environment(
     autoescape=select_autoescape(["html", "xml"])
 )
 
-# Static (CSS/JS)
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 if os.path.isdir(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -36,7 +35,6 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-# Colonnes du Kanban
 KANBAN_COLUMNS: List[Tuple[str, str]] = [
     ("new", "Nouveau"),
     ("to_do", "À traiter"),
@@ -71,7 +69,7 @@ def dashboard(
 ):
     current_profile = current_profile_from_query(profile)
 
-    # 1) Tous les contacts (panneau droit)
+    # Tous les contacts (paneau droit)
     if current_profile:
         contacts_stmt = (
             select(Contact)
@@ -82,7 +80,7 @@ def dashboard(
         contacts_stmt = select(Contact).order_by(Contact.created_at.desc())
     all_contacts: List[Contact] = session.exec(contacts_stmt).all()
 
-    # 2) Kanban si un profil est choisi
+    # Kanban par statut si profil choisi
     deals_by_status: Dict[str, List[Dict]] = {k: [] for k, _ in KANBAN_COLUMNS}
     if current_profile:
         stmt = (
@@ -96,17 +94,21 @@ def dashboard(
             bucket = d.status if d.status in deals_by_status else "new"
             deals_by_status[bucket].append({"deal": d, "contact": c})
 
-    # 3) Contact sélectionné + messages
+    # Contact sélectionné + messages
     selected = None
     messages: List[Message] = []
-    messages_next_cursor = None  # pagination éventuelle plus tard
+    messages_next_cursor = None
 
     if contact_id:
         contact = session.get(Contact, contact_id)
         if not contact:
             raise HTTPException(status_code=404, detail="Contact introuvable")
 
-        deal_stmt = select(Deal).where(Deal.contact_id == contact.id).order_by(Deal.created_at.desc())
+        deal_stmt = (
+            select(Deal)
+            .where(Deal.contact_id == contact.id)
+            .order_by(Deal.created_at.desc())
+        )
         deal = session.exec(deal_stmt).first()
         if not deal:
             deal = Deal(
@@ -168,14 +170,28 @@ def contacts_page(
 def contacts_new_form(
     request: Request,
 ):
-    return render_template("contact_form.html", {"request": request, "mode": "create", "error": None})
+    return render_template(
+        "contact_form.html",
+        {
+            "request": request,
+            "mode": "create",
+            "error": None,
+            "name": "",
+            "phone": "",
+            "email": "",
+            "company": "",
+            "address": "",
+            "tags": "",
+            "type": "client",
+        },
+    )
 
 
 @app.post("/contacts/new")
 def contacts_create(
     request: Request,
     name: str = Form(...),
-    phone: str = Form(...),  # OBLIGATOIRE
+    phone: str = Form(...),  # téléphone OBLIGATOIRE
     email: str = Form(""),
     type: str = Form("client"),
     company: str = Form(""),
@@ -183,7 +199,7 @@ def contacts_create(
     tags: str = Form(""),
     session: Session = Depends(get_session),
 ):
-    # Nettoyage
+    # Nettoyage basique
     name = name.strip()
     phone = phone.strip()
     email = email.strip() or None
@@ -191,15 +207,16 @@ def contacts_create(
     address = address.strip() or None
     tags = tags.strip() or None
 
-    # Validation : téléphone obligatoire (car NOT NULL en DB + CRM WhatsApp)
+    # Validation métier : on veut absolument un numéro (CRM WhatsApp)
     if not phone:
         return render_template(
             "contact_form.html",
             {
                 "request": request,
                 "mode": "create",
-                "error": "Le numéro de téléphone est obligatoire.",
+                "error": "Le numéro de téléphone est obligatoire pour créer un contact WhatsApp.",
                 "name": name,
+                "phone": "",  # on laisse vide
                 "email": email or "",
                 "company": company or "",
                 "address": address or "",
@@ -235,6 +252,7 @@ def contacts_create(
     session.add(d)
     session.commit()
 
+    # On revient directement sur le pipeline avec ce contact ouvert
     redirect_url = f"/?contact_id={c.id}&profile={c.type}"
     return RedirectResponse(redirect_url, status_code=303)
 
@@ -262,7 +280,7 @@ def send_whatsapp_message(
         channel="WhatsApp",
         content=content.strip(),
         created_at=ts,
-        sent_at=ts,  # évite la contrainte NOT NULL
+        sent_at=ts,  # NOT NULL respectée
     )
     session.add(msg)
 
