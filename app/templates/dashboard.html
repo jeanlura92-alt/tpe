@@ -2,268 +2,217 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <title>CRM WhatsApp Artisans — Pipeline</title>
+  <title>CRM WhatsApp Artisans</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root{
-      /* Thème clair (aligné avec Contacts) */
-      --bg:#f7f7fb;
-      --panel:#ffffff;
-      --sidebar:#ffffff;
-      --line:#e5e7eb;
-      --text:#0f172a;
-      --muted:#6b7280;
-      --brand:#2563eb;      /* bleu pro */
-      --brand-weak:#e8f0ff; /* fond boutons/chips */
-      --card:#ffffff;
+    :root { --bg:#f7f7fb; --card:#fff; --muted:#6b7280; --text:#111827; --line:#e5e7eb; --brand:#0f172a; --ok:#16a34a; --warn:#d97706; }
+    html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial; }
+    a { color:inherit; text-decoration:none; }
+    .layout { display:grid; grid-template-columns: 240px 1fr 420px; gap:16px; padding:16px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; }
+    .sidebar { padding:12px; position:sticky; top:16px; height: calc(100vh - 32px); overflow:auto; }
+    .sidebar h3 { margin:6px 0 12px; font-size:14px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+    .sidebar-nav a { display:block; padding:10px 12px; border-radius:10px; margin-bottom:6px; border:1px solid transparent; }
+    .sidebar-nav a.active { background:#eef2ff; border-color:#e0e7ff; }
+    .sidebar .filter { margin-top:14px; }
+    .btn { display:inline-block; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+    .btn-ghost { background:#fff; border:1px dashed var(--line); }
+    .btn-primary { background:var(--brand); color:#fff; border-color:var(--brand); }
+    .muted { color:var(--muted); }
+    .small { font-size:12px; }
 
-      --badge-new:#16a34a;     /* vert */
-      --badge-quote:#d97706;   /* orange */
-      --badge-sched:#2563eb;   /* bleu */
-      --badge-closed:#7c3aed;  /* violet */
+    /* Kanban */
+    .kanban { display:grid; grid-template-columns: repeat(4, minmax(220px,1fr)); gap:12px; }
+    .col { padding:8px; min-height: 80px; }
+    .col h4 { margin:6px 6px 10px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+    .dropzone { min-height: 40px; padding: 4px; border-radius:10px; transition: background .15s, outline-color .15s; }
+    .dropzone.dragover { background:#f1f5ff; outline:2px dashed #c7d2fe; }
+    .deal { padding:10px; border:1px solid var(--line); border-radius:10px; margin:8px 0; background:#fff; cursor:grab; }
+    .deal:active { cursor:grabbing; }
+    .deal .name { font-weight:600; }
+    .deal .meta { color:var(--muted); font-size:12px; margin-top:4px; }
+    .deal .row-actions { margin-top:8px; display:flex; gap:6px; }
 
-      --bubble-in:#ffffff;
-      --bubble-out:#eef2ff;
-    }
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial}
-    a{color:inherit;text-decoration:none}
+    /* Right panel */
+    .right { padding:0; display:flex; flex-direction:column; height: calc(100vh - 32px); position:sticky; top:16px; }
+    .right-header { padding:12px 14px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
+    .toolbar { padding:8px 12px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .status-form select { padding:8px 10px; border-radius:8px; border:1px solid var(--line); }
+    .right-body { display:grid; grid-template-columns: 240px 1fr; height:100%; }
 
-    /* Layout responsive: sidebar / kanban / conversation */
-    .app{
-      display:grid;
-      grid-template-columns:260px 1fr 520px;
-      min-height:100vh;
-    }
+    /* Contacts list */
+    .contacts { border-right:1px solid var(--line); overflow:auto; }
+    .contacts details { border-bottom:1px solid var(--line); }
+    .contacts summary { cursor:pointer; padding:10px 12px; font-weight:600; }
+    .contacts .group { padding:8px 12px; }
+    .contacts .c { padding:8px 10px; border-radius:8px; display:flex; align-items:center; justify-content:space-between; border:1px solid transparent; }
+    .contacts .c.active { background:#eef2ff; border-color:#e0e7ff; }
 
-    /* Header mobile (affiché < 992px) */
-    .topbar{
-      display:none;
-      position:sticky; top:0; z-index:20;
-      background:var(--panel); border-bottom:1px solid var(--line);
-      padding:10px 12px; align-items:center; justify-content:space-between;
-    }
-    .topbar .title{font-weight:700}
-    .topbar .btn{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}
+    /* Thread */
+    .thread { display:flex; flex-direction:column; height:100%; }
+    .messages { padding:12px 14px; overflow:auto; flex:1; background:#fafafa; border-bottom:1px solid var(--line); }
+    .msg-divider { text-align:center; color:var(--muted); font-size:12px; margin:8px 0; }
+    .msg { display:flex; margin:6px 0; }
+    .msg.in { justify-content:flex-start; }
+    .msg.out { justify-content:flex-end; }
+    .bubble { max-width:70%; border:1px solid var(--line); background:#fff; padding:10px 12px; border-radius:12px; position:relative; }
+    .msg.out .bubble { background:#f1f5ff; }
+    .bubble .meta { display:block; color:var(--muted); font-size:11px; margin-top:6px; text-align:right; }
+    .composer { padding:12px; display:flex; gap:8px; }
+    .composer textarea { flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--line); resize:vertical; min-height:44px; }
 
-    /* Sidebar claire */
-    .sidebar{
-      background:var(--sidebar); color:var(--text);
-      padding:18px 14px; position:sticky; top:0; height:100vh; overflow:auto;
-      border-right:1px solid var(--line);
-    }
-    .brand{display:flex;align-items:center;gap:10px;margin-bottom:18px;font-weight:800;letter-spacing:.2px}
-    .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
-    .side-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px}
-    .nav a{
-      display:flex;align-items:center;gap:8px;
-      padding:10px 12px;border-radius:10px;margin-bottom:6px;
-      background:#fff; border:1px solid var(--line);
-    }
-    .nav a.active{background:var(--brand-weak); border-color:#cfe0ff}
-    .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-    .chips a{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:#fff}
-    .chips a.active{background:var(--brand-weak); border-color:#cfe0ff}
-
-    /* Kanban (zone centrale) */
-    .center{padding:18px;border-right:1px solid var(--line); background:var(--bg)}
-    .kanban{display:grid;gap:14px;grid-template-columns:repeat(4,minmax(240px,1fr))}
-    .col{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-    .col-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);font-weight:700}
-    .badge{font-size:11px;padding:4px 8px;border-radius:999px;opacity:.95;border:1px solid transparent}
-    .b-new{color:var(--badge-new);background:rgba(22,163,74,.10);border-color:rgba(22,163,74,.25)}
-    .b-quote{color:var(--badge-quote);background:rgba(217,119,6,.10);border-color:rgba(217,119,6,.25)}
-    .b-sched{color:var(--badge-sched);background:rgba(37,99,235,.10);border-color:rgba(37,99,235,.25)}
-    .b-closed{color:var(--badge-closed);background:rgba(124,58,237,.10);border-color:rgba(124,58,237,.25)}
-    .card{margin:10px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
-    .deal-name{font-weight:700}
-    .deal-meta{color:var(--muted);font-size:12px;margin-top:4px}
-    .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);cursor:pointer;background:#fff;color:var(--text)}
-    .btn-primary{background:var(--brand);border-color:var(--brand);color:#fff}
-
-    /* Panneau droit (liste contacts + fil) */
-    .right{display:flex;flex-direction:column;height:100vh;position:sticky;top:0;background:var(--panel)}
-    .right-head{background:var(--panel);border-bottom:1px solid var(--line);padding:12px 14px;display:flex;align-items:center;gap:10px}
-    .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:6px 8px;border-radius:999px;background:var(--brand-weak);border:1px solid #cfe0ff}
-    .statusbar{background:var(--panel);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .statusbar select{background:#fff;border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:8px}
-    .right-body{display:grid;grid-template-columns:260px 1fr;height:100%;background:#fff}
-
-    /* Liste contacts */
-    .contacts{border-right:1px solid var(--line);overflow:auto;background:#fff}
-    .contacts .list{padding:10px}
-    .contact{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:10px;border-radius:10px;margin-bottom:6px;background:#fff;border:1px solid var(--line)
-    }
-    .contact.active{background:var(--brand-weak);border-color:#cfe0ff}
-    .contact .type{font-size:12px;color:var(--muted)}
-
-    /* Fil messages */
-    .thread{display:flex;flex-direction:column;height:100%;background:#fff}
-    .messages{flex:1;overflow:auto;padding:14px;background:#fafafa;border-bottom:1px solid var(--line)}
-    .msg{display:flex;margin:8px 0}
-    .msg.in{justify-content:flex-start}
-    .msg.out{justify-content:flex-end}
-    .bubble{max-width:70%;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--bubble-in)}
-    .msg.out .bubble{background:var(--bubble-out)}
-    .bubble .meta{display:block;margin-top:6px;font-size:11px;color:var(--muted);text-align:right}
-    .composer{border-top:1px solid var(--line);padding:12px;background:#fff;display:flex;gap:8px}
-    .composer textarea{flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--text);resize:vertical;min-height:46px}
-
-    /* --- Responsive --- */
-    @media (max-width: 1200px){
-      .app{grid-template-columns:220px 1fr 460px}
-      .right-body{grid-template-columns:220px 1fr}
-    }
-    @media (max-width: 992px){
-      .topbar{display:flex}
-      .app{grid-template-columns:1fr}
-      .sidebar{display:none;position:fixed;inset:0 35% 0 0;z-index:30;box-shadow:4px 0 20px rgba(0,0,0,.15)}
-      .sidebar.open{display:block}
-      .center{order:2;border-right:none;border-bottom:1px solid var(--line)}
-      .right{order:3;height:auto;position:static}
-      .right-body{grid-template-columns:1fr}
-      .contacts{border-right:none;border-bottom:1px solid var(--line)}
-    }
-    @media (max-width: 640px){
-      .kanban{grid-template-columns:1fr}    /* Kanban 1 colonne */
-      .messages{padding:10px}
-      .bubble{max-width:85%}
-    }
+    /* Empty states */
+    .empty { display:flex; align-items:center; justify-content:center; padding:24px; border:1px dashed var(--line); border-radius:12px; background:#fff; }
   </style>
 </head>
 <body>
-  <!-- Topbar mobile -->
-  <div class="topbar">
-    <div class="title">Pipeline WhatsApp</div>
-    <button class="btn" onclick="toggleSidebar()">Menu</button>
-  </div>
-
-  <div class="app">
-    <!-- Sidebar claire -->
-    <aside class="sidebar" id="sidebar">
-      <div class="brand"><span class="dot"></span><div>RDV-Pro • WhatsApp CRM</div></div>
-
-      <div class="side-title">Navigation</div>
-      <nav class="nav">
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="card sidebar">
+      <h3>Navigation</h3>
+      <nav class="sidebar-nav">
         <a class="active" href="/"><span>Pipeline WhatsApp</span></a>
         <a href="/contacts"><span>Contacts</span></a>
         <a href="/contacts/new"><span>+ Nouveau contact</span></a>
       </nav>
 
-      <div class="side-title" style="margin-top:18px">Profils</div>
-      <div class="chips">
-        <a href="/" class="{{ 'active' if current_profile=='tous' else '' }}">Tous</a>
-        <a href="/?profile=client" class="{{ 'active' if current_profile=='client' else '' }}">Clients</a>
-        <a href="/?profile=prospect" class="{{ 'active' if current_profile=='prospect' else '' }}">Prospects</a>
-        <a href="/?profile=fournisseur" class="{{ 'active' if current_profile=='fournisseur' else '' }}">Fournisseurs</a>
-        <a href="/?profile=autre" class="{{ 'active' if current_profile=='autre' else '' }}">Autres</a>
+      <div class="filter">
+        <h3>Filtrer par profil</h3>
+        <div>
+          <a class="btn" href="/">Tous</a>
+          <a class="btn" href="/?profile=client">Clients</a>
+          <a class="btn" href="/?profile=prospect">Prospects</a>
+          <a class="btn" href="/?profile=fournisseur">Fournisseurs</a>
+          <a class="btn" href="/?profile=autre">Autres</a>
+        </div>
       </div>
     </aside>
 
-    <!-- Kanban -->
-    <main class="center">
-      <section class="kanban">
+    <!-- Kanban (visible uniquement si un profil est choisi) -->
+    <section class="kanban">
+      {% if current_profile and current_profile != 'tous' %}
         {% for col in columns %}
-          <div class="col">
-            <div class="col-head">
-              <span>{{ col.label }}</span>
-              {% if col.id == 'new' %}
-                <span class="badge b-new">{{ deals_by_status[col.id]|length }}</span>
-              {% elif col.id == 'quote' %}
-                <span class="badge b-quote">{{ deals_by_status[col.id]|length }}</span>
-              {% elif col.id == 'scheduled' %}
-                <span class="badge b-sched">{{ deals_by_status[col.id]|length }}</span>
-              {% else %}
-                <span class="badge b-closed">{{ deals_by_status[col.id]|length }}</span>
-              {% endif %}
-            </div>
-            <div>
-              {% for item in deals_by_status[col.id] %}
-                <div class="card">
-                  <div class="deal-name">{{ item.contact.name }}</div>
-                  <div class="deal-meta">
-                    {{ item.contact.phone }} • {{ item.deal.last_message_channel or '—' }} •
-                    {{ item.deal.last_message_at.astimezone().strftime('%d/%m %H:%M') if item.deal.last_message_at else '—' }}
-                  </div>
-                  <div style="margin-top:10px">
-                    <a class="btn" href="/?contact_id={{ item.contact.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">Ouvrir</a>
-                  </div>
+        <div class="card col" data-status="{{ col.id }}">
+          <h4>{{ col.label }}</h4>
+          <div class="dropzone" data-status="{{ col.id }}">
+            {% for item in deals_by_status[col.id] %}
+              <div class="deal" draggable="true" data-deal-id="{{ item.deal.id }}">
+                <div class="name">{{ item.contact.name }}</div>
+                <div class="meta small muted">
+                  {{ item.contact.phone }} • {{ item.deal.last_message_channel or '—' }} •
+                  {{ item.deal.last_message_at.astimezone().strftime('%d/%m %H:%M') if item.deal.last_message_at else '—' }}
                 </div>
-              {% else %}
-                <div class="deal-meta" style="padding:10px">Aucune affaire</div>
-              {% endfor %}
+                <div class="row-actions">
+                  <a class="btn" href="/?contact_id={{ item.contact.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">Ouvrir</a>
+                </div>
+              </div>
+            {% else %}
+              <div class="muted small" style="padding:6px 8px;">Aucune affaire</div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="card" style="grid-column: 1 / -1;">
+          <div class="empty">
+            <div>
+              <div style="font-weight:700; margin-bottom:6px;">Choisissez un profil pour afficher le Kanban</div>
+              <div class="muted">Clients, Prospects, Fournisseurs ou Autres.</div>
             </div>
           </div>
-        {% endfor %}
-      </section>
-    </main>
+        </div>
+      {% endif %}
+    </section>
 
-    <!-- Panneau droit -->
-    <aside class="right">
-      <div class="right-head">
+    <!-- Right panel -->
+    <aside class="card right">
+      <div class="right-header">
         {% if selected %}
-          <div style="font-weight:800">{{ selected.contact.name }}</div>
-          <div class="chip">📞 {{ selected.contact.phone }}</div>
+          <div style="font-weight:700">{{ selected.contact.name }}</div>
+          <div class="muted">•</div>
+          <div class="muted small">{{ selected.contact.phone }}</div>
         {% else %}
-          <div class="chip">Sélectionnez un contact</div>
+          <div class="muted">Sélectionnez un contact</div>
         {% endif %}
       </div>
 
-      <div class="statusbar">
+      <div class="toolbar">
         {% if selected %}
-          <form method="post" action="/deals/{{ selected.deal.id }}/status">
-            <input type="hidden" name="next" value="/?contact_id={{ selected.contact.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
-            <select name="status" onchange="this.form.submit()">
-              {% for val, label in status_options %}
-                <option value="{{ val }}" {% if selected.deal.status==val %}selected{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
-          </form>
+        <form class="status-form" method="post" action="/deals/{{ selected.deal.id }}/status">
+          <input type="hidden" name="next" value="/?contact_id={{ selected.contact.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
+          <select name="status" onchange="this.form.submit()">
+            {% for val, label in status_options %}
+              <option value="{{ val }}" {% if selected.deal.status==val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </form>
         {% endif %}
-        <div style="color:var(--muted);font-size:12px">Profil : <strong>{{ current_profile }}</strong></div>
+        <div class="muted small">Profil : <strong>{{ current_profile }}</strong></div>
       </div>
 
       <div class="right-body">
         <!-- Liste contacts -->
         <div class="contacts">
-          <div class="list">
-            {% for c in contacts_list %}
-              <a class="contact {% if selected and selected.contact.id==c.id %}active{% endif %}"
-                 href="/?contact_id={{ c.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
-                <span>{{ c.name }}</span>
-                <span class="type">{{ c.type }}</span>
-              </a>
-            {% endfor %}
-          </div>
+          <details open>
+            <summary>Contacts ({{ contacts_list|length }})</summary>
+            <div class="group">
+              {% for c in contacts_list %}
+                <a class="c {% if selected and selected.contact.id==c.id %}active{% endif %}"
+                   href="/?contact_id={{ c.id }}{% if current_profile and current_profile!='tous' %}&profile={{ current_profile }}{% endif %}">
+                  <span>{{ c.name }}</span>
+                  <span class="muted small">{{ c.type }}</span>
+                </a>
+              {% endfor %}
+            </div>
+          </details>
         </div>
 
-        <!-- Fil de messages (historique complet) -->
+        <!-- Fil de messages -->
         <div class="thread">
-          <div class="messages" id="messages">
+          <div class="messages">
+            {% if messages_next_cursor %}
+              <form method="get" style="margin-bottom:8px;">
+                <input type="hidden" name="contact_id" value="{{ selected.contact.id if selected }}">
+                <input type="hidden" name="msgs_before" value="{{ messages_next_cursor }}">
+                <input type="hidden" name="msgs_limit" value="{{ messages_limit }}">
+                {% if current_profile and current_profile != 'tous' %}
+                  <input type="hidden" name="profile" value="{{ current_profile }}">
+                {% endif %}
+                <button class="btn btn-ghost" style="width:100%;">Afficher plus d’historique</button>
+              </form>
+            {% endif %}
+
             {% if messages %}
+              {% set last_day = None %}
               {% for m in messages %}
+                {% set day = (m.sent_at or m.created_at).astimezone().strftime('%Y-%m-%d') %}
+                {% if day != last_day %}
+                  <div class="msg-divider">
+                    {{ (m.sent_at or m.created_at).astimezone().strftime('%d %b %Y') }}
+                  </div>
+                  {% set last_day = day %}
+                {% endif %}
                 <div class="msg {{ 'out' if m.direction=='out' else 'in' }}">
                   <div class="bubble">
                     {{ m.content | e }}
-                    <span class="meta">{{ (m.sent_at or m.created_at).astimezone().strftime('%d/%m %H:%M') }}</span>
+                    <span class="meta">{{ (m.sent_at or m.created_at).astimezone().strftime('%H:%M') }}</span>
                   </div>
                 </div>
               {% endfor %}
             {% else %}
-              <div class="deal-meta">Aucun message à afficher.</div>
+              <div class="muted small">Aucun message à afficher.</div>
             {% endif %}
           </div>
 
+          <!-- Composer -->
           <div class="composer">
             {% if selected %}
-              <form method="post" action="/deals/{{ selected.deal.id }}/send_message" style="display:flex;gap:8px;width:100%;">
-                <textarea name="content" placeholder="Écrire un message WhatsApp…"></textarea>
-                <button class="btn btn-primary" type="submit">Envoyer</button>
-              </form>
+            <form method="post" action="/deals/{{ selected.deal.id }}/send_message" style="display:flex; gap:8px; width:100%;">
+              <textarea name="content" placeholder="Écrire un message WhatsApp…"></textarea>
+              <button class="btn btn-primary" type="submit">Envoyer</button>
+            </form>
             {% else %}
-              <div class="deal-meta">Sélectionnez un contact pour écrire.</div>
+              <div class="muted">Sélectionnez un contact pour écrire.</div>
             {% endif %}
           </div>
         </div>
@@ -272,14 +221,71 @@
   </div>
 
   <script>
-    function toggleSidebar(){
-      var sb = document.getElementById('sidebar');
-      if(!sb) return;
-      if(sb.classList.contains('open')) sb.classList.remove('open');
-      else sb.classList.add('open');
-    }
-    // Auto-scroll au bas de l’historique
-    (function(){ const el=document.getElementById('messages'); if(el) el.scrollTop=el.scrollHeight; })();
+    // --- Drag & Drop Kanban ---
+    (function() {
+      if (!("draggable" in document.createElement("span"))) return;
+
+      let dragged = null;
+
+      document.querySelectorAll(".deal[draggable='true']").forEach(card => {
+        card.addEventListener("dragstart", (e) => {
+          dragged = card;
+          e.dataTransfer.setData("text/plain", card.dataset.dealId);
+          e.dataTransfer.effectAllowed = "move";
+        });
+        card.addEventListener("dragend", () => {
+          dragged = null;
+        });
+      });
+
+      document.querySelectorAll(".dropzone").forEach(zone => {
+        zone.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          zone.classList.add("dragover");
+          e.dataTransfer.dropEffect = "move";
+        });
+        zone.addEventListener("dragleave", () => {
+          zone.classList.remove("dragover");
+        });
+        zone.addEventListener("drop", async (e) => {
+          e.preventDefault();
+          zone.classList.remove("dragover");
+          const dealId = (e.dataTransfer.getData("text/plain") || "").trim();
+          const newStatus = zone.dataset.status;
+          if (!dealId || !newStatus) return;
+
+          try {
+            const form = new FormData();
+            form.append("status", newStatus);
+            // On indique AJAX pour que l'endpoint renvoie JSON
+            const resp = await fetch(`/deals/${dealId}/status`, {
+              method: "POST",
+              headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+              body: form
+            });
+            const data = await resp.json();
+
+            if (resp.ok && data && data.ok) {
+              // On déplace la carte dans la colonne visuellement
+              if (dragged && zone.contains(dragged) === false) {
+                zone.appendChild(dragged);
+                flashed(dragged);
+              }
+            } else {
+              alert("Impossible de changer d'étape : " + (data && (data.error || data.detail) || resp.status));
+            }
+          } catch (err) {
+            alert("Erreur réseau : " + err);
+          }
+        });
+      });
+
+      function flashed(el) {
+        el.style.outline = "2px solid #86efac";
+        el.style.transition = "outline-color .6s ease";
+        setTimeout(() => { el.style.outlineColor = "transparent"; }, 600);
+      }
+    })();
   </script>
 </body>
 </html>
