@@ -1,79 +1,94 @@
 import os
-from sqlmodel import SQLModel, create_engine, Session
 from contextlib import contextmanager
+from supabase import create_client, Client
 
 
-def _mask_url(url: str) -> str:
-    try:
-        if "://" not in url:
-            return url
-        scheme, rest = url.split("://", 1)
-        if "@" not in rest or ":" not in rest.split("@", 1)[0]:
-            return url
-        creds, hostpart = rest.split("@", 1)
-        user, _pwd = creds.split(":", 1)
-        return f"{scheme}://{user}:****@{hostpart}"
-    except Exception:
-        return url
+# ======================================================
+# Utils
+# ======================================================
+def _mask_key(key: str) -> str:
+    """
+    Masque une clé sensible pour les logs
+    """
+    if not key or len(key) < 8:
+        return "****"
+    return key[:4] + "****" + key[-4:]
 
 
-# 1) DATABASE_URL obligatoire
-DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL manquant. Définis cette variable sur Render.")
+# ======================================================
+# 1) VARIABLES D’ENV OBLIGATOIRES (SUPABASE)
+# ======================================================
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()  # service_role côté backend
 
-# 2) Normalisation d'URL ➜ forcer le dialecte psycopg (psycopg3)
-#    - postgres://...                 ➜ postgresql+psycopg://...
-#    - postgresql://...               ➜ postgresql+psycopg://...
-#    - postgresql+psycopg2://...      ➜ postgresql+psycopg://...
-#    - postgresql+psycopg://...       (déjà OK)
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
-elif DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
-elif DATABASE_URL.startswith("postgresql+psycopg2://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql+psycopg2://", "postgresql+psycopg://", 1)
+if not SUPABASE_URL:
+    raise RuntimeError("SUPABASE_URL manquant. Définis cette variable sur Render.")
 
-# 3) Pooling Render (petit dyno)
-POOL_SIZE = int(os.getenv("SQL_POOL_SIZE", "5"))
-MAX_OVERFLOW = int(os.getenv("SQL_MAX_OVERFLOW", "5"))
-POOL_TIMEOUT = int(os.getenv("SQL_POOL_TIMEOUT", "20"))
-POOL_RECYCLE = int(os.getenv("SQL_POOL_RECYCLE", "1800"))
+if not SUPABASE_KEY:
+    raise RuntimeError("SUPABASE_KEY manquant. Définis cette variable sur Render.")
 
-engine = create_engine(
-    DATABASE_URL,
-    echo=os.getenv("SQL_ECHO", "0") == "1",
-    pool_size=POOL_SIZE,
-    max_overflow=MAX_OVERFLOW,
-    pool_timeout=POOL_TIMEOUT,
-    pool_recycle=POOL_RECYCLE,
-    pool_pre_ping=True,
-    future=True,
-)
+# Debug léger si besoin (sans exposer la clé)
+if os.getenv("DB_DEBUG", "0") == "1":
+    print("[DB] SUPABASE_URL =", SUPABASE_URL)
+    print("[DB] SUPABASE_KEY =", _mask_key(SUPABASE_KEY))
 
 
-def create_db_and_tables() -> None:
-    SQLModel.metadata.create_all(engine)
+# ======================================================
+# 2) CLIENT SUPABASE (singleton)
+# ======================================================
+_supabase: Client | None = None
 
 
+def get_supabase() -> Client:
+    """
+    Retourne une instance unique du client Supabase
+    (évite les re-créations inutiles)
+    """
+    global _supabase
+    if _supabase is None:
+        _supabase = create_client(
+            SUPABASE_URL,
+            SUPABASE_KEY
+        )
+    return _supabase
+
+
+# ======================================================
+# 3) API COMPATIBLE AVEC L’EXISTANT
+# ======================================================
+def db() -> Client:
+    """
+    Alias court utilisé partout dans l’app
+
+    Exemple :
+        db().table("contacts").select("*").execute()
+    """
+    return get_supabase()
+
+
+# ======================================================
+# 4) CONTEXT MANAGER (compatibilité mentale)
+# ======================================================
 @contextmanager
 def session_scope():
-    s = Session(engine)
+    """
+    Conservé volontairement pour ne pas casser
+    la logique existante du code.
+
+    Supabase n’a pas besoin de close(),
+    mais ça permet une transition propre.
+    """
     try:
-        yield s
+        yield get_supabase()
     finally:
-        try:
-            s.close()
-        except Exception:
-            pass
+        pass
 
 
 def get_session():
-    s = Session(engine)
+    """
+    Generator conservé pour compatibilité FastAPI Depends
+    """
     try:
-        yield s
+        yield get_supabase()
     finally:
-        try:
-            s.close()
-        except Exception:
-            pass
+        pass
