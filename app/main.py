@@ -145,7 +145,6 @@ def dashboard(
                 sb.table("deals")
                 .insert({
                     "workspace_id": DEFAULT_WORKSPACE_ID,
-                    "title": f"Deal {contact['name']}",
                     "status": "new",
                     "contact_id": contact_id,
                     "created_at": now_utc(),
@@ -261,7 +260,6 @@ def contacts_create(
 
     sb.table("deals").insert({
         "workspace_id": DEFAULT_WORKSPACE_ID,
-        "title": f"Deal {contact['name']}",
         "status": "new",
         "contact_id": contact["id"],
         "created_at": now_utc(),
