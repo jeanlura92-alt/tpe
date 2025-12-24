@@ -2,12 +2,20 @@ from datetime import datetime, timezone
 import os
 from typing import Dict, List, Optional, Tuple
 
-from fastapi import FastAPI, Request, Form, Depends, HTTPException
+from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .database import db
+
+
+# ======================================================
+# CONFIG SAAS / WORKSPACE
+# ======================================================
+DEFAULT_WORKSPACE_ID = os.getenv("DEFAULT_WORKSPACE_ID")
+if not DEFAULT_WORKSPACE_ID:
+    raise RuntimeError("DEFAULT_WORKSPACE_ID manquant (Render env var)")
 
 
 # ======================================================
@@ -61,32 +69,24 @@ def current_profile_from_query(profile: Optional[str]) -> Optional[str]:
 @app.get("/", response_class=HTMLResponse)
 def dashboard(
     request: Request,
-    contact_id: Optional[int] = None,
+    contact_id: Optional[str] = None,
     profile: Optional[str] = None,
     msgs_limit: int = 30,
 ):
     current_profile = current_profile_from_query(profile)
-
     sb = db()
 
     # ---------- Contacts ----------
+    q = (
+        sb.table("contacts")
+        .select("*")
+        .eq("workspace_id", DEFAULT_WORKSPACE_ID)
+        .order("created_at", desc=True)
+    )
     if current_profile:
-        contacts_resp = (
-            sb.table("contacts")
-            .select("*")
-            .eq("type", current_profile)
-            .order("created_at", desc=True)
-            .execute()
-        )
-    else:
-        contacts_resp = (
-            sb.table("contacts")
-            .select("*")
-            .order("created_at", desc=True)
-            .execute()
-        )
+        q = q.eq("type", current_profile)
 
-    all_contacts = contacts_resp.data or []
+    all_contacts = q.execute().data or []
 
     # ---------- Kanban ----------
     deals_by_status: Dict[str, List[Dict]] = {k: [] for k, _ in KANBAN_COLUMNS}
@@ -95,6 +95,7 @@ def dashboard(
         rows = (
             sb.table("deals")
             .select("*, contacts(*)")
+            .eq("workspace_id", DEFAULT_WORKSPACE_ID)
             .eq("contacts.type", current_profile)
             .order("created_at", desc=True)
             .execute()
@@ -119,6 +120,7 @@ def dashboard(
             sb.table("contacts")
             .select("*")
             .eq("id", contact_id)
+            .eq("workspace_id", DEFAULT_WORKSPACE_ID)
             .single()
             .execute()
             .data
@@ -127,20 +129,22 @@ def dashboard(
         if not contact:
             raise HTTPException(404, "Contact introuvable")
 
-        deal = (
+        deal_resp = (
             sb.table("deals")
             .select("*")
             .eq("contact_id", contact_id)
+            .eq("workspace_id", DEFAULT_WORKSPACE_ID)
             .order("created_at", desc=True)
             .limit(1)
             .execute()
             .data
         )
 
-        if not deal:
+        if not deal_resp:
             deal = (
                 sb.table("deals")
                 .insert({
+                    "workspace_id": DEFAULT_WORKSPACE_ID,
                     "title": f"Deal {contact['name']}",
                     "status": "new",
                     "contact_id": contact_id,
@@ -150,11 +154,12 @@ def dashboard(
                 .data[0]
             )
         else:
-            deal = deal[0]
+            deal = deal_resp[0]
 
         messages = (
             sb.table("messages")
             .select("*")
+            .eq("workspace_id", DEFAULT_WORKSPACE_ID)
             .eq("deal_id", deal["id"])
             .order("created_at", desc=False)
             .limit(max(5, min(200, msgs_limit)))
@@ -193,6 +198,7 @@ def contacts_page(request: Request):
     contacts = (
         db().table("contacts")
         .select("*")
+        .eq("workspace_id", DEFAULT_WORKSPACE_ID)
         .order("created_at", desc=True)
         .execute()
         .data
@@ -234,9 +240,12 @@ def contacts_create(
     if type not in PROFILE_ALLOWED:
         type = "autre"
 
+    sb = db()
+
     contact = (
-        db().table("contacts")
+        sb.table("contacts")
         .insert({
+            "workspace_id": DEFAULT_WORKSPACE_ID,
             "name": name.strip(),
             "phone": phone.strip(),
             "email": email.strip() or None,
@@ -250,7 +259,8 @@ def contacts_create(
         .data[0]
     )
 
-    db().table("deals").insert({
+    sb.table("deals").insert({
+        "workspace_id": DEFAULT_WORKSPACE_ID,
         "title": f"Deal {contact['name']}",
         "status": "new",
         "contact_id": contact["id"],
@@ -267,18 +277,35 @@ def contacts_create(
 # Messages & Kanban
 # ======================================================
 @app.post("/deals/{deal_id}/send_message")
-def send_whatsapp_message(deal_id: int, content: str = Form(...)):
+def send_whatsapp_message(deal_id: str, content: str = Form(...)):
     sb = db()
 
-    deal = sb.table("deals").select("*").eq("id", deal_id).single().execute().data
+    deal = (
+        sb.table("deals")
+        .select("*")
+        .eq("id", deal_id)
+        .eq("workspace_id", DEFAULT_WORKSPACE_ID)
+        .single()
+        .execute()
+        .data
+    )
     if not deal:
         raise HTTPException(404, "Deal introuvable")
 
-    contact = sb.table("contacts").select("*").eq("id", deal["contact_id"]).single().execute().data
+    contact = (
+        sb.table("contacts")
+        .select("*")
+        .eq("id", deal["contact_id"])
+        .eq("workspace_id", DEFAULT_WORKSPACE_ID)
+        .single()
+        .execute()
+        .data
+    )
 
     ts = now_utc()
 
     sb.table("messages").insert({
+        "workspace_id": DEFAULT_WORKSPACE_ID,
         "deal_id": deal_id,
         "contact_id": contact["id"],
         "direction": "out",
@@ -302,14 +329,16 @@ def send_whatsapp_message(deal_id: int, content: str = Form(...)):
 
 @app.post("/deals/{deal_id}/status")
 def update_deal_status(
-    deal_id: int,
+    deal_id: str,
     status: str = Form(...),
     request: Request = None,
 ):
     if status not in {k for k, _ in KANBAN_COLUMNS}:
         raise HTTPException(400, "Statut invalide")
 
-    db().table("deals").update({"status": status}).eq("id", deal_id).execute()
+    db().table("deals").update({
+        "status": status
+    }).eq("id", deal_id).eq("workspace_id", DEFAULT_WORKSPACE_ID).execute()
 
     is_ajax = request and request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if is_ajax:
