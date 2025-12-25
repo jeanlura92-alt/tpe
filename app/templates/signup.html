@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Essai gratuit – CRM WhatsApp pour professionnels</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description"
+        content="Organisez vos contacts WhatsApp professionnels par catégories personnalisables. Essai gratuit 7 jours, sans engagement." />
+
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --primary: #2563eb;
+      --border: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(1200px 500px at 50% -200px, #e0e7ff 0%, transparent 60%),
+        var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .wrapper {
+      width: 100%;
+      max-width: 440px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 42px 40px;
+      box-shadow: 0 25px 60px rgba(15,23,42,0.08);
+    }
+
+    h1 {
+      font-size: 30px;
+      line-height: 1.2;
+      margin: 0 0 12px 0;
+      color: var(--text);
+    }
+
+    .subtitle {
+      font-size: 15px;
+      color: var(--muted);
+      margin-bottom: 30px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    input {
+      width: 100%;
+      padding: 13px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-size: 15px;
+      margin-bottom: 18px;
+      background: #fff;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    button {
+      width: 100%;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 14px;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.95;
+    }
+
+    .note {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 18px;
+      line-height: 1.45;
+    }
+
+    .note a {
+      color: var(--muted);
+      text-decoration: underline;
+    }
+
+    footer {
+      margin-top: 22px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    footer a {
+      color: var(--muted);
+      text-decoration: none;
+      margin: 0 8px;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 480px) {
+      .card {
+        padding: 32px 26px;
+      }
+
+      h1 {
+        font-size: 26px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="wrapper">
+    <form class="card" method="POST" action="#">
+      <h1>Accédez à votre espace</h1>
+
+      <div class="subtitle">
+        Organisez vos contacts WhatsApp par catégories personnalisées  
+        (clients, prospects, fournisseurs… ou les vôtres).
+        <br><br>
+        Essai gratuit 7 jours. Sans engagement.
+      </div>
+
+      <label for="email">Email professionnel</label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        placeholder="ex : contact@entreprise.fr"
+        required
+      >
+
+      <label for="phone">Numéro WhatsApp</label>
+      <input
+        id="phone"
+        name="phone"
+        type="tel"
+        placeholder="+33 6 12 34 56 78"
+        required
+      >
+
+      <button type="submit">
+        Accéder au dashboard
+      </button>
+
+      <div class="note">
+        Aucun mot de passe requis pour commencer.
+        <br>
+        Vos données sont strictement confidentielles et jamais revendues.
+        <br><br>
+        En continuant, vous acceptez nos
+        <a href="conditions-utilisation.html">conditions d’utilisation</a>
+        et notre
+        <a href="politique-confidentialite.html">politique de confidentialité</a>.
+      </div>
+
+      <footer>
+        <a href="mentions-legales.html">Mentions légales</a>
+        •
+        <a href="mailto:contact@rdv-pro.com">Contact</a>
+      </footer>
+    </form>
+  </div>
+
+</body>
+</html>
